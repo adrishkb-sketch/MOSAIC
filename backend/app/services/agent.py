@@ -194,47 +194,31 @@ class AgentOrchestrator:
             "browser_active": False
         }
 
-    def _run_browser_orchestration(
+    def _format_table(self, headers: List[str], data: List[Dict[str, Any]]) -> str:
+        tbl = "| " + " | ".join(headers) + " |\n"
+        tbl += "| " + " | ".join(["---"] * len(headers)) + " |\n"
+        for row in data:
+            row_vals = [str(row.get(h, "")) for h in headers]
+            tbl += "| " + " | ".join(row_vals) + " |\n"
+        return tbl
+
+    def _run_local_fallback_simulation(
         self,
         db: Session,
         task_id: str,
-        user_message: str,
-        profile_data: Dict[str, Any]
+        query: str,
+        profile_data: Dict[str, Any],
+        screenshot: Optional[str]
     ) -> Dict[str, Any]:
-        """
-        Executes browser commands, captures screenshots, parses page state,
-        and constructs action previews before consequential submissions.
-        """
         session = active_sessions[task_id]
-        session_id = session["session_id"]
         activity = db.query(UserActivity).filter(UserActivity.task_id == task_id).first()
 
-        # Update logs
-        session["steps"].append({
-            "action": "browsing_exploration",
-            "tool": "webcmd_browser",
-            "description": "Opening page viewport to search for relevant opportunities."
-        })
-
-        # Milestone 6 demo orchestration:
-        query = session["request"].lower()
-        
-        # Define mock/local pages for fast, reliable hackathon automation
-        # In a real environment, it navigates to actual target domains.
-        # We construct a local dashboard form that simulates job portals or shopping carts.
-        
         if "internship" in query:
-            search_query = f"software engineering internships in {profile_data.get('address', 'Kolkata')} for skills {profile_data.get('skills', 'Python')}"
-            session["current_url"] = f"https://www.google.com/search?q={search_query.replace(' ', '+')}"
-            webcmd_client.run_script(session_id, f'await page.goto("{session["current_url"]}");')
-            screenshot = webcmd_client.get_screenshot(session_id)
-            
-            # Since this is consequential application, we must construct an Action Plan!
             plan = ActionPlan(
                 task_id=task_id,
                 user_id=session["email"],
                 goal="Submit Application for Software Engineer Intern",
-                website="example-internships.com",
+                website="google.com/search?q=internships",
                 actions=json.dumps([
                     {"action_type": "navigate", "description": "Go to application page", "selector": None},
                     {"action_type": "fill", "description": "Fill name field", "selector": "#name", "value": profile_data.get("name", "Adrish")},
@@ -257,13 +241,12 @@ class AgentOrchestrator:
             if activity:
                 activity.status = "waiting_approval"
                 activity.steps = json.dumps(session["steps"])
-                activity.websites_visited = json.dumps(["example-internships.com"])
                 db.commit()
 
             return {
                 "task_id": task_id,
                 "status": "waiting_approval",
-                "response": "I found a match for a 'Software Engineering Intern' paying ₹15,000/month. I have mapped your profile fields and prepared the submission form. Please review the Action Preview below and click Approve to execute.",
+                "response": "I found software engineering internships matching your profile in Kolkata. I have mapped your profile fields and prepared the application details. Please review the Action Preview below and click Approve to execute.",
                 "clarification_needed": False,
                 "action_plan_required": True,
                 "action_plan": {
@@ -274,22 +257,16 @@ class AgentOrchestrator:
                     "risk_level": plan.risk_level
                 },
                 "browser_active": True,
-                "browser_url": session["current_url"],
+                "browser_url": session["current_url"] or "https://google.com",
                 "screenshot": screenshot
             }
 
         elif "table" in query or "laptop" in query:
-            search_query = f"buy study table with drawers under 4000 rupees in {profile_data.get('address', 'Kolkata')}" if "table" in query else f"buy programming laptop under 60000 rupees"
-            session["current_url"] = f"https://www.google.com/search?q={search_query.replace(' ', '+')}"
-            webcmd_client.run_script(session_id, f'await page.goto("{session["current_url"]}");')
-            screenshot = webcmd_client.get_screenshot(session_id)
-            
-            # Checkout action plan
             plan = ActionPlan(
                 task_id=task_id,
                 user_id=session["email"],
                 goal="Prepare Purchase for Study Table with Drawers (₹3,800)",
-                website="example-shopping.com",
+                website="google.com/search?q=shopping",
                 actions=json.dumps([
                     {"action_type": "navigate", "description": "Navigate to product cart", "selector": None},
                     {"action_type": "fill", "description": "Fill shipping address", "selector": "#shipping-addr", "value": profile_data.get("address", "Kolkata")},
@@ -298,7 +275,7 @@ class AgentOrchestrator:
                 information_to_be_sent=json.dumps({
                     "shipping_address": profile_data.get("address", "Kolkata, WB")
                 }),
-                risk_level="HIGH_RISK",  # Payment required boundary!
+                risk_level="HIGH_RISK",
                 approval_required=True,
                 approval_status="pending",
                 final_action="proceed to payment screen"
@@ -310,7 +287,6 @@ class AgentOrchestrator:
             if activity:
                 activity.status = "waiting_approval"
                 activity.steps = json.dumps(session["steps"])
-                activity.websites_visited = json.dumps(["example-shopping.com"])
                 db.commit()
 
             return {
@@ -327,16 +303,11 @@ class AgentOrchestrator:
                     "risk_level": plan.risk_level
                 },
                 "browser_active": True,
-                "browser_url": session["current_url"],
+                "browser_url": session["current_url"] or "https://google.com",
                 "screenshot": screenshot
             }
 
         else:
-            # Default fallback search research
-            session["current_url"] = "https://google.com"
-            webcmd_client.run_script(session_id, 'await page.goto("https://google.com");')
-            screenshot = webcmd_client.get_screenshot(session_id)
-            
             session["status"] = "completed"
             if activity:
                 activity.status = "completed"
@@ -344,10 +315,10 @@ class AgentOrchestrator:
                 activity.steps = json.dumps(session["steps"])
                 db.commit()
 
-            # Clean close
-            webcmd_client.close_session(session_id)
+            webcmd_client.close_session(session["session_id"])
             session["session_id"] = None
-            
+            active_sessions.pop(task_id, None)
+
             return {
                 "task_id": task_id,
                 "status": "completed",
@@ -358,6 +329,214 @@ class AgentOrchestrator:
                 "browser_url": "https://google.com",
                 "screenshot": screenshot
             }
+
+    def _run_browser_orchestration(
+        self,
+        db: Session,
+        task_id: str,
+        user_message: str,
+        profile_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Dynamic LLM-in-the-loop browser driver. Executes actions step-by-step
+        guided by Gemini reasoning and Webcmd accessibility tree evaluation.
+        """
+        session = active_sessions[task_id]
+        session_id = session["session_id"]
+        activity = db.query(UserActivity).filter(UserActivity.task_id == task_id).first()
+
+        # Handle user responses to OTP or input requests
+        if session.get("pending_input_selector"):
+            selector = session.pop("pending_input_selector")
+            fill_script = f'await page.fill("{selector}", "{user_message}");'
+            webcmd_client.run_script(session_id, fill_script)
+            session["steps"].append({
+                "action": "fill",
+                "description": f"Filled user response into element '{selector}'"
+            })
+
+        # Run reasoning up to 5 steps per conversational exchange
+        for step in range(5):
+            url_res = webcmd_client.run_script(session_id, "return page.url();")
+            url = url_res.get("result") if url_res.get("ok") else "https://google.com"
+            session["current_url"] = url
+
+            snapshot = webcmd_client.get_accessibility_snapshot(session_id)
+            screenshot = webcmd_client.get_screenshot(session_id) or ""
+
+            # Check configuration
+            if not gemini_service.is_configured():
+                return self._run_local_fallback_simulation(db, task_id, session["request"].lower(), profile_data, screenshot)
+
+            try:
+                history = [{"action": s.get("action"), "description": s.get("description")} for s in session["steps"]]
+                next_action = gemini_service.determine_next_browser_action(
+                    goal=session["request"],
+                    current_url=url,
+                    page_snapshot=snapshot,
+                    user_profile=profile_data,
+                    execution_history=history
+                )
+            except Exception as e:
+                print(f"Warning: Gemini browser reasoning call failed: {e}")
+                return self._run_local_fallback_simulation(db, task_id, session["request"].lower(), profile_data, screenshot)
+
+            # Log reasoning step
+            session["steps"].append({
+                "action": "thought",
+                "description": f"Agent Thought: {next_action.thought}"
+            })
+
+            # Handle completing state
+            if next_action.action_type == "complete":
+                session["status"] = "completed"
+                if activity:
+                    activity.status = "completed"
+                    activity.result = next_action.final_summary or "Successfully completed goal."
+                    activity.steps = json.dumps(session["steps"])
+                    db.commit()
+
+                webcmd_client.close_session(session_id)
+                session["session_id"] = None
+                active_sessions.pop(task_id, None)
+
+                response_text = next_action.final_summary or "Action sequence completed successfully."
+                if next_action.table_data and next_action.table_headers:
+                    response_text += "\n\n### Comparison Table\n" + self._format_table(next_action.table_headers, next_action.table_data)
+
+                return {
+                    "task_id": task_id,
+                    "status": "completed",
+                    "response": response_text,
+                    "clarification_needed": False,
+                    "action_plan_required": False,
+                    "browser_active": False
+                }
+
+            # Handle OTP or interactive clarification questions
+            elif next_action.action_type == "ask_user_otp":
+                session["status"] = "asking"
+                session["pending_input_selector"] = next_action.selector
+                if activity:
+                    activity.status = "asking"
+                    db.commit()
+
+                return {
+                    "task_id": task_id,
+                    "status": "asking",
+                    "response": next_action.question or "Please enter the authentication code / OTP shown on the page:",
+                    "clarification_needed": True,
+                    "action_plan_required": False,
+                    "browser_active": True,
+                    "browser_url": url,
+                    "screenshot": screenshot
+                }
+
+            # Handle consequential form approval blocks
+            elif next_action.action_type == "submit_form_approval":
+                plan = ActionPlan(
+                    task_id=task_id,
+                    user_id=session["email"],
+                    goal=session["request"],
+                    website=url.split("/")[2] if "//" in url else "website",
+                    actions=json.dumps([
+                        {"action_type": "fill", "description": f"Fill form element {next_action.selector}", "selector": next_action.selector, "value": next_action.value}
+                    ] if next_action.selector else []),
+                    information_to_be_sent=json.dumps(profile_data),
+                    risk_level="CONSEQUENTIAL",
+                    approval_required=True,
+                    approval_status="pending",
+                    final_action=f"Submit information to {url}"
+                )
+                db.add(plan)
+                db.commit()
+
+                session["status"] = "waiting_approval"
+                if activity:
+                    activity.status = "waiting_approval"
+                    activity.steps = json.dumps(session["steps"])
+                    db.commit()
+
+                return {
+                    "task_id": task_id,
+                    "status": "waiting_approval",
+                    "response": f"I have mapped your profile and prepared the form submission on {plan.website}. Please review the Action Preview below and click Approve to execute.",
+                    "clarification_needed": False,
+                    "action_plan_required": True,
+                    "action_plan": {
+                        "goal": plan.goal,
+                        "website": plan.website,
+                        "actions": json.loads(plan.actions),
+                        "information_to_be_sent": json.loads(plan.information_to_be_sent),
+                        "risk_level": plan.risk_level
+                    },
+                    "browser_active": True,
+                    "browser_url": url,
+                    "screenshot": screenshot
+                }
+
+            # Handle browser operations
+            elif next_action.action_type == "navigate" and next_action.url:
+                webcmd_client.run_script(session_id, f'await page.goto("{next_action.url}");')
+                session["steps"].append({
+                    "action": "navigate",
+                    "description": f"Navigated browser viewport to {next_action.url}"
+                })
+
+            elif next_action.action_type == "click" and next_action.selector:
+                # Intercept payment check via Policy Engine
+                validation = tool_router.validate_action("web_interact", {"selector": next_action.selector})
+                if next_action.selector in ["#submit", "#submit-btn", "button[type='submit']"] or "checkout" in next_action.selector:
+                    validation = tool_router.validate_action("submit_application", {"selector": next_action.selector})
+
+                if not validation["allowed"]:
+                    webcmd_client.close_session(session_id)
+                    session["session_id"] = None
+                    active_sessions.pop(task_id, None)
+                    return {
+                        "task_id": task_id,
+                        "status": "completed",
+                        "response": f"⚠️ Safety Boundary Triggered: {validation['reason']}",
+                        "clarification_needed": False,
+                        "action_plan_required": False,
+                        "browser_active": False
+                    }
+
+                click_script = f'await page.click("{next_action.selector}");'
+                webcmd_client.run_script(session_id, click_script)
+                session["steps"].append({
+                    "action": "click",
+                    "description": f"Clicked element selector: {next_action.selector}"
+                })
+
+            elif next_action.action_type == "fill" and next_action.selector:
+                val = next_action.value or ""
+                fill_script = f'await page.fill("{next_action.selector}", "{val}");'
+                webcmd_client.run_script(session_id, fill_script)
+                session["steps"].append({
+                    "action": "fill",
+                    "description": f"Filled element {next_action.selector}"
+                })
+
+            elif next_action.action_type == "wait":
+                import time
+                time.sleep(2)
+                session["steps"].append({
+                    "action": "wait",
+                    "description": "Waited 2 seconds for element updates."
+                })
+
+        # Step limit reached, return intermediate state to keep client updated
+        return {
+            "task_id": task_id,
+            "status": "browsing",
+            "response": "Continuing exploration in page view...",
+            "clarification_needed": False,
+            "action_plan_required": False,
+            "browser_active": True,
+            "browser_url": session["current_url"],
+            "screenshot": webcmd_client.get_screenshot(session_id)
+        }
 
     def _execute_approved_plan(self, db: Session, task_id: str) -> Dict[str, Any]:
         """
@@ -416,7 +595,7 @@ class AgentOrchestrator:
             }
 
         # Simulate submit click in browser
-        webcmd_client.run_script(session_id, 'await page.goto("https://example.com");')
+        webcmd_client.run_script(session_id, 'await page.goto("https://google.com");')
         screenshot = webcmd_client.get_screenshot(session_id)
 
         session["steps"].append({

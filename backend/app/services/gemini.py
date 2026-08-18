@@ -72,6 +72,17 @@ class ResumeDraftResult(BaseModel):
     projects: List[Dict[str, Any]]
     summary: str
 
+class BrowserNextAction(BaseModel):
+    thought: str = Field(description="The thinking process, analyzing the page state, links, or fields relative to the goal.")
+    action_type: str = Field(description="One of: click, fill, navigate, wait, ask_user_otp, submit_form_approval, complete")
+    selector: Optional[str] = Field(None, description="CSS selector or element selector for click/fill")
+    value: Optional[str] = Field(None, description="The value to fill if action_type is fill")
+    url: Optional[str] = Field(None, description="The target URL to navigate to if action_type is navigate")
+    question: Optional[str] = Field(None, description="The question or OTP request message to return to the user if action_type is ask_user_otp")
+    table_data: Optional[List[Dict[str, Any]]] = Field(None, description="Tabular results prepared beautifully for the user (e.g. comparing options)")
+    table_headers: Optional[List[str]] = Field(None, description="Headers for the tabular results")
+    final_summary: Optional[str] = Field(None, description="Final summary text if task is complete")
+
 # --- Gemini Service Provider Class ---
 
 class GeminiService:
@@ -172,5 +183,36 @@ class GeminiService:
         Fill in realistic professional summaries and structure it cleanly.
         """
         return self._call_model(prompt, ResumeDraftResult)
+
+    def determine_next_browser_action(
+        self,
+        goal: str,
+        current_url: Optional[str],
+        page_snapshot: str,
+        user_profile: Dict[str, Any],
+        execution_history: List[Dict[str, Any]]
+    ) -> BrowserNextAction:
+        prompt = f"""
+        You are driving a browser agent to achieve this user goal: "{goal}"
+        
+        Current URL: {current_url}
+        Accessibility tree snapshot of the page:
+        {page_snapshot}
+        
+        User's Private Profile: {json.dumps(user_profile)}
+        Execution History so far: {json.dumps(execution_history)}
+        
+        Analyze the current page state, compare it with the goal, and decide the NEXT action.
+        Guidelines:
+        1. If you need to search or research first, navigate to a real, relevant website or search portal (e.g. Google, LinkedIn, Amazon, etc.).
+        2. If you see search results or list options, analyze them, select the best ones, and you can prepare a structured table (using table_headers and table_data) to compare them for the user.
+        3. If you need to click a link to navigate to a target detail page, use 'click' or 'navigate'.
+        4. If you need to fill forms, map fields from the User Profile.
+        5. If you reach a payment checkout page, safety rules require you to stop and ask for manual payment.
+        6. If you need a verification code, OTP, or user input, set action_type to 'ask_user_otp' and define the question.
+        7. If you are ready to perform a consequential action (submitting a form, booking a ticket, registering), set action_type to 'submit_form_approval' and describe it.
+        8. If you have successfully achieved the goal, set action_type to 'complete' and provide a final_summary.
+        """
+        return self._call_model(prompt, BrowserNextAction)
 
 gemini_service = GeminiService()
