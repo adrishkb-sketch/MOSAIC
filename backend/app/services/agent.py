@@ -194,12 +194,12 @@ class AgentOrchestrator:
             "browser_active": False
         }
 
-    def _format_table(self, headers: List[str], data: List[Dict[str, Any]]) -> str:
+    def _format_table(self, headers: List[str], rows: List[Any]) -> str:
         tbl = "| " + " | ".join(headers) + " |\n"
         tbl += "| " + " | ".join(["---"] * len(headers)) + " |\n"
-        for row in data:
-            row_vals = [str(row.get(h, "")) for h in headers]
-            tbl += "| " + " | ".join(row_vals) + " |\n"
+        for row in rows:
+            cells = row.cells if hasattr(row, "cells") else row
+            tbl += "| " + " | ".join([str(c) for c in cells]) + " |\n"
         return tbl
 
     def _run_local_fallback_simulation(
@@ -211,9 +211,15 @@ class AgentOrchestrator:
         screenshot: Optional[str]
     ) -> Dict[str, Any]:
         session = active_sessions[task_id]
+        session_id = session["session_id"]
         activity = db.query(UserActivity).filter(UserActivity.task_id == task_id).first()
 
         if "internship" in query:
+            search_query = f"software engineering internships in {profile_data.get('address', 'Kolkata')} for skills {profile_data.get('skills', 'Python')}"
+            session["current_url"] = f"https://www.google.com/search?q={search_query.replace(' ', '+')}"
+            webcmd_client.run_script(session_id, f'await page.goto("{session["current_url"]}");')
+            screenshot = webcmd_client.get_screenshot(session_id) or screenshot
+
             plan = ActionPlan(
                 task_id=task_id,
                 user_id=session["email"],
@@ -257,11 +263,16 @@ class AgentOrchestrator:
                     "risk_level": plan.risk_level
                 },
                 "browser_active": True,
-                "browser_url": session["current_url"] or "https://google.com",
+                "browser_url": session["current_url"],
                 "screenshot": screenshot
             }
 
         elif "table" in query or "laptop" in query:
+            search_query = f"buy study table with drawers under 4000 rupees in {profile_data.get('address', 'Kolkata')}" if "table" in query else f"buy programming laptop under 60000 rupees"
+            session["current_url"] = f"https://www.google.com/search?q={search_query.replace(' ', '+')}"
+            webcmd_client.run_script(session_id, f'await page.goto("{session["current_url"]}");')
+            screenshot = webcmd_client.get_screenshot(session_id) or screenshot
+
             plan = ActionPlan(
                 task_id=task_id,
                 user_id=session["email"],
@@ -303,11 +314,15 @@ class AgentOrchestrator:
                     "risk_level": plan.risk_level
                 },
                 "browser_active": True,
-                "browser_url": session["current_url"] or "https://google.com",
+                "browser_url": session["current_url"],
                 "screenshot": screenshot
             }
 
         else:
+            session["current_url"] = "https://google.com"
+            webcmd_client.run_script(session_id, 'await page.goto("https://google.com");')
+            screenshot = webcmd_client.get_screenshot(session_id) or screenshot
+
             session["status"] = "completed"
             if activity:
                 activity.status = "completed"
@@ -315,7 +330,7 @@ class AgentOrchestrator:
                 activity.steps = json.dumps(session["steps"])
                 db.commit()
 
-            webcmd_client.close_session(session["session_id"])
+            webcmd_client.close_session(session_id)
             session["session_id"] = None
             active_sessions.pop(task_id, None)
 
@@ -401,8 +416,8 @@ class AgentOrchestrator:
                 active_sessions.pop(task_id, None)
 
                 response_text = next_action.final_summary or "Action sequence completed successfully."
-                if next_action.table_data and next_action.table_headers:
-                    response_text += "\n\n### Comparison Table\n" + self._format_table(next_action.table_headers, next_action.table_data)
+                if next_action.table_rows and next_action.table_headers:
+                    response_text += "\n\n### Comparison Table\n" + self._format_table(next_action.table_headers, next_action.table_rows)
 
                 return {
                     "task_id": task_id,

@@ -43,11 +43,15 @@ class ActionItem(BaseModel):
     selector: Optional[str] = Field(description="CSS selector or ref if applicable")
     value: Optional[str] = Field(description="Value to fill if action is fill")
 
+class ProfileFieldUsage(BaseModel):
+    key: str
+    value: str
+
 class ActionPlanSchema(BaseModel):
     goal: str
     website: str
     actions: List[ActionItem]
-    information_to_be_sent: Dict[str, Any] = Field(description="Private user data that will be shared with the website during this plan")
+    information_to_be_sent: List[ProfileFieldUsage] = Field(description="Private user data that will be shared with the website during this plan")
     risk_level: str = Field(description="READ_ONLY, LOW_RISK, CONSEQUENTIAL, HIGH_RISK")
     approval_required: bool
     final_action: Optional[str] = Field(description="The final consequential action description, if any")
@@ -62,15 +66,32 @@ class UserMemoryCandidate(BaseModel):
 class UserMemoryResult(BaseModel):
     candidates: List[UserMemoryCandidate]
 
+class ResumeDraftEducation(BaseModel):
+    institution: str
+    degree: str
+    year: str
+
+class ResumeDraftExperience(BaseModel):
+    company: str
+    role: str
+    duration: str
+
+class ResumeDraftProject(BaseModel):
+    title: str
+    description: str
+
 class ResumeDraftResult(BaseModel):
     name: str
     email: str
     phone: str
-    education: List[Dict[str, Any]]
-    experience: List[Dict[str, Any]]
+    education: List[ResumeDraftEducation]
+    experience: List[ResumeDraftExperience]
     skills: List[str]
-    projects: List[Dict[str, Any]]
+    projects: List[ResumeDraftProject]
     summary: str
+
+class TableRow(BaseModel):
+    cells: List[str]
 
 class BrowserNextAction(BaseModel):
     thought: str = Field(description="The thinking process, analyzing the page state, links, or fields relative to the goal.")
@@ -79,8 +100,8 @@ class BrowserNextAction(BaseModel):
     value: Optional[str] = Field(None, description="The value to fill if action_type is fill")
     url: Optional[str] = Field(None, description="The target URL to navigate to if action_type is navigate")
     question: Optional[str] = Field(None, description="The question or OTP request message to return to the user if action_type is ask_user_otp")
-    table_data: Optional[List[Dict[str, Any]]] = Field(None, description="Tabular results prepared beautifully for the user (e.g. comparing options)")
-    table_headers: Optional[List[str]] = Field(None, description="Headers for the tabular results")
+    table_headers: Optional[List[str]] = Field(None, description="Headers for the comparison table")
+    table_rows: Optional[List[TableRow]] = Field(None, description="Rows for the comparison table (each row contains a cells list matching headers)")
     final_summary: Optional[str] = Field(None, description="Final summary text if task is complete")
 
 # --- Gemini Service Provider Class ---
