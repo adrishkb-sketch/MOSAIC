@@ -56,8 +56,10 @@ export default function ActivityLog({ email }: ActivityLogProps) {
   return (
     <div className="flex-1 flex flex-col p-8 overflow-y-auto max-h-screen">
       <div className="mb-8">
-        <h1 className="text-2xl font-extrabold tracking-tight text-slate-100 font-sans">Audit Activity Log</h1>
-        <p className="text-slate-400 text-sm mt-1">
+        <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-200 to-violet-200 flex items-center gap-2">
+          📋 Audit Activity Log
+        </h1>
+        <p className="text-slate-300/80 text-sm mt-2">
           Inspect a detailed history of every query, tools invoked, pages browsed, and private memories retrieved.
         </p>
       </div>
@@ -67,18 +69,18 @@ export default function ActivityLog({ email }: ActivityLogProps) {
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-indigo-500" />
         </div>
       ) : activities.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-12 border border-dashed border-slate-800 rounded-2xl bg-slate-900/10">
-          <span className="text-4xl mb-4">📋</span>
-          <h3 className="text-slate-200 font-bold text-base">No activity recorded</h3>
+        <div className="flex-1 flex flex-col items-center justify-center p-12 border border-dashed border-white/20 rounded-3xl glass-card">
+          <span className="text-4xl mb-4">📭</span>
+          <h3 className="text-slate-200 font-bold text-base">No activity recorded yet</h3>
           <p className="text-slate-400 text-xs mt-1 text-center max-w-sm">
             Once you execute browser tasks or search queries, the audit trail will appear here.
           </p>
         </div>
       ) : (
-        <div className="border border-slate-800/80 rounded-2xl bg-slate-900/10 overflow-hidden shadow-xl">
+        <div className="glass-panel overflow-hidden rounded-3xl">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-slate-800 bg-slate-900/50 text-[10px] uppercase font-bold tracking-wider text-slate-400">
+              <tr className="border-b border-white/10 bg-black/20 text-[10px] uppercase font-bold tracking-wider text-slate-300">
                 <th className="px-6 py-4">Task ID</th>
                 <th className="px-6 py-4">User Request</th>
                 <th className="px-6 py-4">Status</th>
@@ -86,9 +88,9 @@ export default function ActivityLog({ email }: ActivityLogProps) {
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60">
+            <tbody className="divide-y divide-white/5">
               {activities.map((log) => (
-                <tr key={log.id} className="hover:bg-slate-900/30 transition-all text-xs text-slate-300">
+                <tr key={log.id} className="hover:bg-white/5 transition-all text-xs text-slate-200">
                   <td className="px-6 py-4 font-mono font-bold text-slate-400">{log.task_id.substring(0, 12)}...</td>
                   <td className="px-6 py-4 font-medium max-w-xs truncate">{log.request}</td>
                   <td className="px-6 py-4">{getStatusBadge(log.status)}</td>
@@ -112,8 +114,8 @@ export default function ActivityLog({ email }: ActivityLogProps) {
 
       {/* Activity Details Modal */}
       {selectedActivity && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl p-6 shadow-2xl relative max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="glass-panel w-full max-w-2xl p-6 relative max-h-[90vh] flex flex-col">
             <button
               onClick={() => setSelectedActivity(null)}
               className="absolute top-4 right-4 text-slate-500 hover:text-slate-350 text-lg"

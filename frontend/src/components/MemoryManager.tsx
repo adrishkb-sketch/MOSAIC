@@ -105,8 +105,10 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
     <div className="flex-1 flex flex-col p-8 overflow-y-auto max-h-screen">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-slate-100">Memory & Transparency Center</h1>
-          <p className="text-slate-400 text-sm mt-1">
+          <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-200 to-violet-200 flex items-center gap-2">
+            🧠 Memory & Transparency Center
+          </h1>
+          <p className="text-slate-300/80 text-sm mt-2">
             Review and manage all information MOSAIC currently stores about you in your isolated space.
           </p>
         </div>
@@ -125,7 +127,7 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-indigo-500" />
         </div>
       ) : memories.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-12 border border-dashed border-slate-800 rounded-2xl bg-slate-900/10">
+        <div className="flex-1 flex flex-col items-center justify-center p-12 border border-dashed border-white/20 rounded-3xl glass-card">
           <span className="text-4xl mb-4">🧠</span>
           <h3 className="text-slate-200 font-bold text-base">Your memory is completely empty</h3>
           <p className="text-slate-400 text-xs mt-1 text-center max-w-sm">
@@ -137,7 +139,7 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
           {memories.map((item) => (
             <div
               key={item.id}
-              className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-6 flex flex-col justify-between hover:border-slate-700/50 transition-all shadow-md backdrop-blur-sm"
+              className="glass-panel flex flex-col justify-between hover:border-white/20 transition-all rounded-3xl p-6"
             >
               <div>
                 <div className="flex items-start justify-between gap-4 mb-4">
@@ -157,7 +159,7 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
                     className="w-full text-xs bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 mb-4"
                   />
                 ) : (
-                  <p className="text-slate-300 text-xs bg-slate-950/40 rounded-xl p-3 border border-slate-900/60 leading-relaxed break-words mb-4 line-clamp-4">
+                  <p className="text-slate-300 text-xs bg-black/30 rounded-xl p-3 border border-white/5 leading-relaxed break-words mb-4 line-clamp-4">
                     {item.value}
                   </p>
                 )}
@@ -220,8 +222,8 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
 
       {/* Transparency Modal */}
       {selectedWhy && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg p-6 shadow-2xl relative">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="glass-panel w-full max-w-lg p-6 relative rounded-3xl">
             <button
               onClick={() => setSelectedWhy(null)}
               className="absolute top-4 right-4 text-slate-500 hover:text-slate-300 text-lg"

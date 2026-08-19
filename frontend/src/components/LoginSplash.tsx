@@ -33,23 +33,23 @@ export default function LoginSplash({ onLogin }: LoginSplashProps) {
   };
 
   return (
-    <div className="flex-1 flex items-center justify-center p-6 bg-slate-950 relative overflow-hidden">
+    <div className="flex-1 flex items-center justify-center p-6 bg-transparent relative overflow-hidden h-screen">
       {/* Background radial glow */}
-      <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
-      <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-96 h-96 bg-violet-500/10 rounded-full blur-3xl" />
+      <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl animate-pulse" />
+      <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-96 h-96 bg-violet-500/20 rounded-full blur-3xl animate-pulse" />
 
-      <div className="w-full max-w-md p-8 rounded-2xl bg-slate-900/60 border border-slate-800/80 backdrop-blur-xl shadow-2xl relative z-10 transition-all hover:border-slate-700/50">
+      <div className="w-full max-w-md p-8 rounded-3xl glass-panel relative z-10 transition-all hover:border-white/20 hover:shadow-indigo-500/10">
         <div className="flex flex-col items-center mb-8">
           {/* Logo */}
           <div className="w-14 h-14 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 mb-4 animate-pulse">
             <span className="text-2xl font-black text-white tracking-widest">M</span>
           </div>
           
-          <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-slate-100 to-slate-300">
-            Welcome to MOSAIC
+          <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-200 to-violet-200 flex items-center gap-2">
+            ✨ Welcome to MOSAIC
           </h1>
-          <p className="text-sm text-slate-400 mt-2 text-center">
-            MOSAIC learns the web, not your identity.
+          <p className="text-sm text-indigo-200/70 mt-2 text-center font-medium">
+            MOSAIC learns the web, not your identity. 🛡️
           </p>
         </div>
 
@@ -65,7 +65,7 @@ export default function LoginSplash({ onLogin }: LoginSplashProps) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={isLoading}
-              className="w-full px-4 py-3 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/80 transition-all text-sm"
+              className="w-full px-4 py-3 rounded-xl bg-slate-900/40 border border-white/10 text-slate-100 placeholder-slate-400 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/50 transition-all text-sm backdrop-blur-sm"
             />
             {error && (
               <p className="text-rose-500 text-xs mt-2 flex items-center gap-1 font-medium">
@@ -77,18 +77,18 @@ export default function LoginSplash({ onLogin }: LoginSplashProps) {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 text-white font-semibold text-sm transition-all shadow-lg shadow-indigo-500/10 focus:outline-none disabled:opacity-50"
+            className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-white font-bold text-sm transition-all shadow-[0_0_20px_rgba(99,102,241,0.4)] focus:outline-none disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {isLoading ? (
-              <span className="flex items-center justify-center gap-2">
+              <>
                 <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
-                Initializing agent...
-              </span>
+                <span>Initializing agent... 🚀</span>
+              </>
             ) : (
-              "Get Started"
+              "Get Started 🚀"
             )}
           </button>
         </form>

@@ -39,7 +39,7 @@ export default function DashboardPage() {
 
   if (!isClient) {
     return (
-      <div className="flex-1 bg-slate-950 flex items-center justify-center">
+      <div className="flex-1 bg-transparent flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-indigo-500" />
       </div>
     );
@@ -71,14 +71,14 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="flex-grow flex h-screen overflow-hidden bg-slate-950 text-slate-100 font-sans">
+    <div className="flex-grow flex h-screen overflow-hidden bg-transparent text-slate-100 font-sans">
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         email={email}
         onLogout={handleLogout}
       />
-      <main className="flex-1 flex flex-col overflow-hidden bg-slate-950">
+      <main className="flex-1 flex flex-col overflow-hidden bg-transparent">
         {renderTabContent()}
       </main>
     </div>

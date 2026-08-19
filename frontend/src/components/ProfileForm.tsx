@@ -104,17 +104,19 @@ export default function ProfileForm({ email }: ProfileFormProps) {
   return (
     <div className="flex-1 flex flex-col p-8 overflow-y-auto max-h-screen">
       <div className="mb-8">
-        <h1 className="text-2xl font-extrabold tracking-tight text-slate-100 font-sans">Universal Profile</h1>
-        <p className="text-slate-400 text-sm mt-1">
+        <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-200 to-violet-200 flex items-center gap-2">
+          👤 Universal Profile
+        </h1>
+        <p className="text-slate-300/80 text-sm mt-2">
           Provide your information once. MOSAIC will retrieve these details when mapping form fields, protecting your credentials.
         </p>
       </div>
 
       <form onSubmit={handleSave} className="space-y-6 max-w-4xl">
         {/* Section 1: Basic details */}
-        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-6 shadow-md backdrop-blur-sm space-y-4">
-          <h3 className="text-slate-200 font-bold text-sm tracking-wide uppercase border-b border-slate-800/50 pb-2">
-            Basic Information
+        <div className="glass-panel rounded-3xl p-6 space-y-4">
+          <h3 className="text-slate-200 font-bold text-sm tracking-wide uppercase border-b border-white/10 pb-2 flex items-center gap-2">
+            <span>ℹ️</span> Basic Information
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -163,9 +165,9 @@ export default function ProfileForm({ email }: ProfileFormProps) {
         </div>
 
         {/* Section 2: Education */}
-        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-6 shadow-md backdrop-blur-sm space-y-4">
-          <h3 className="text-slate-200 font-bold text-sm tracking-wide uppercase border-b border-slate-800/50 pb-2">
-            Academic Information
+        <div className="glass-panel rounded-3xl p-6 space-y-4">
+          <h3 className="text-slate-200 font-bold text-sm tracking-wide uppercase border-b border-white/10 pb-2 flex items-center gap-2">
+            <span>🎓</span> Academic Information
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
@@ -205,9 +207,9 @@ export default function ProfileForm({ email }: ProfileFormProps) {
         </div>
 
         {/* Section 3: Professional detail */}
-        <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-6 shadow-md backdrop-blur-sm space-y-4">
-          <h3 className="text-slate-200 font-bold text-sm tracking-wide uppercase border-b border-slate-800/50 pb-2">
-            Professional Profile & Links
+        <div className="glass-panel rounded-3xl p-6 space-y-4">
+          <h3 className="text-slate-200 font-bold text-sm tracking-wide uppercase border-b border-white/10 pb-2 flex items-center gap-2">
+            <span>💼</span> Professional Profile & Links
           </h3>
           <div className="space-y-4">
             <div>

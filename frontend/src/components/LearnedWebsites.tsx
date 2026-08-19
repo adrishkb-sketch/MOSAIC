@@ -33,14 +33,16 @@ export default function LearnedWebsites() {
   return (
     <div className="flex-1 flex flex-col p-8 overflow-y-auto max-h-screen">
       <div className="mb-6">
-        <h1 className="text-2xl font-extrabold tracking-tight text-slate-100 font-sans">Learned Web Knowledge</h1>
-        <p className="text-slate-400 text-sm mt-1">
+        <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-200 to-violet-200 flex items-center gap-2">
+          🗂️ Learned Web Knowledge
+        </h1>
+        <p className="text-slate-300/80 text-sm mt-2">
           Review structural sitemaps and automation workflows learned dynamically by MOSAIC across the web.
         </p>
       </div>
 
       {/* Security notice banner */}
-      <div className="bg-indigo-950/20 border border-indigo-900/30 rounded-2xl p-5 mb-8 flex items-start gap-4">
+      <div className="glass-card border-indigo-500/30 rounded-3xl p-5 mb-8 flex items-start gap-4">
         <span className="text-2xl">🛡</span>
         <div>
           <h4 className="font-bold text-slate-200 text-sm">Privacy Isolation Policy</h4>
@@ -56,7 +58,7 @@ export default function LearnedWebsites() {
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-indigo-500" />
         </div>
       ) : websites.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-12 border border-dashed border-slate-800 rounded-2xl bg-slate-900/10">
+        <div className="flex-1 flex flex-col items-center justify-center p-12 border border-dashed border-white/20 rounded-3xl glass-card">
           <span className="text-4xl mb-4">🗂</span>
           <h3 className="text-slate-200 font-bold text-base">No shared websites found</h3>
           <p className="text-slate-400 text-xs mt-1 text-center max-w-sm">
@@ -68,7 +70,7 @@ export default function LearnedWebsites() {
           {websites.map((site) => (
             <div
               key={site.id}
-              className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-6 hover:border-slate-700/50 transition-all shadow-md backdrop-blur-sm space-y-5"
+              className="glass-panel hover:border-white/20 transition-all rounded-3xl p-6 space-y-5"
             >
               {/* Site Header details */}
               <div className="flex items-start justify-between border-b border-slate-800/50 pb-4">

@@ -22,11 +22,11 @@ export default function Sidebar({ activeTab, setActiveTab, email, onLogout }: Si
   ] as const;
 
   return (
-    <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col justify-between shrink-0 h-screen">
+    <aside className="w-64 bg-black/20 backdrop-blur-2xl border-r border-white/10 flex flex-col justify-between shrink-0 h-screen shadow-2xl relative z-20">
       <div>
         {/* Sidebar Header Logo */}
-        <div className="p-6 flex items-center gap-3 border-b border-slate-800/80">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center shadow shadow-indigo-500/20">
+        <div className="p-6 flex items-center gap-3 border-b border-white/10">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,0.5)]">
             <span className="text-sm font-black text-white">M</span>
           </div>
           <div>
@@ -43,10 +43,10 @@ export default function Sidebar({ activeTab, setActiveTab, email, onLogout }: Si
               <button
                 key={item.id}
                 onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold transition-all border ${
                   isActive
-                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/10"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                    ? "bg-gradient-to-r from-indigo-500/80 to-violet-500/80 border-indigo-400/50 text-white shadow-[0_0_15px_rgba(99,102,241,0.3)]"
+                    : "border-transparent text-slate-300 hover:text-white hover:bg-white/5 hover:border-white/10"
                 }`}
               >
                 <span className="text-base">{item.icon}</span>
@@ -58,7 +58,7 @@ export default function Sidebar({ activeTab, setActiveTab, email, onLogout }: Si
       </div>
 
       {/* User Information & Action Footer */}
-      <div className="p-4 border-t border-slate-800/80 space-y-3 bg-slate-950/20">
+      <div className="p-4 border-t border-white/10 space-y-3 bg-black/10">
         <div className="flex items-center gap-3 px-2">
           <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-indigo-400 text-xs">
             {email.substring(0, 2).toUpperCase()}
@@ -71,7 +71,7 @@ export default function Sidebar({ activeTab, setActiveTab, email, onLogout }: Si
 
         <button
           onClick={onLogout}
-          className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold text-rose-400 hover:text-rose-350 hover:bg-rose-950/20 border border-transparent hover:border-rose-900/30 transition-all"
+          className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold text-rose-300 hover:text-rose-200 hover:bg-rose-500/20 border border-transparent hover:border-rose-500/30 transition-all shadow-lg hover:shadow-rose-500/20"
         >
           <span>🚪</span> Logout Session
         </button>

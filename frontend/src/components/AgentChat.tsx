@@ -237,27 +237,27 @@ export default function AgentChat({ email }: AgentChatProps) {
 
   const getStatusText = () => {
     switch (status) {
-      case "thinking": return "Thinking...";
-      case "browsing": return "Browsing Web...";
-      case "asking": return "Awaiting input...";
-      case "learning": return "Learning site structure...";
-      case "preparing": return "Preparing checkout...";
-      case "waiting_approval": return "Awaiting your approval...";
-      case "recovering": return "Recovering from DOM drift...";
-      case "completed": return "Task completed!";
-      case "failed": return "Task failed.";
-      default: return "Ready";
+      case "thinking": return "🤔 Thinking...";
+      case "browsing": return "🌐 Browsing Web...";
+      case "asking": return "❓ Awaiting input...";
+      case "learning": return "🧠 Learning site structure...";
+      case "preparing": return "⚙️ Preparing checkout...";
+      case "waiting_approval": return "⏳ Awaiting your approval...";
+      case "recovering": return "🔄 Recovering from DOM drift...";
+      case "completed": return "✅ Task completed!";
+      case "failed": return "❌ Task failed.";
+      default: return "✨ Ready";
     }
   };
 
   const isViewportVisible = browserActive || (showLiveViewport && (status !== "idle" && status !== "completed" && status !== "failed"));
 
   return (
-    <div className="flex-1 flex overflow-hidden h-screen bg-slate-950">
+    <div className="flex-1 flex overflow-hidden h-screen bg-transparent">
       {/* Left Pane: Conversational Log */}
-      <div className={`flex flex-col border-r border-slate-800/80 transition-all duration-300 ${isViewportVisible ? "w-1/2" : "w-full"}`}>
+      <div className={`flex flex-col border-r border-white/10 transition-all duration-300 ${isViewportVisible ? "w-1/2 bg-black/20 backdrop-blur-sm" : "w-full"}`}>
         {/* Header Status */}
-        <div className="p-4 border-b border-slate-800/80 bg-slate-900/40 flex items-center justify-between">
+        <div className="p-4 border-b border-white/10 bg-black/20 backdrop-blur-md flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className={`w-2.5 h-2.5 rounded-full ${status === "idle" ? "bg-slate-500" : status === "completed" ? "bg-emerald-500" : "bg-indigo-500 animate-ping"}`} />
             <div>
@@ -298,10 +298,10 @@ export default function AgentChat({ email }: AgentChatProps) {
                 <div
                   className={`max-w-[85%] rounded-2xl p-4 text-xs leading-relaxed shadow-sm ${
                     isAgent
-                      ? "bg-slate-900 border border-slate-800 text-slate-100"
+                      ? "glass-card text-slate-100"
                       : isSystem
-                      ? "bg-slate-950/40 border border-slate-850/60 text-slate-400 text-center font-semibold"
-                      : "bg-indigo-600 text-white font-medium"
+                      ? "bg-black/30 border border-white/5 text-slate-400 text-center font-semibold backdrop-blur-sm"
+                      : "bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-bold shadow-[0_0_15px_rgba(99,102,241,0.4)]"
                   }`}
                 >
                   <p className="whitespace-pre-line">{msg.text}</p>
@@ -320,7 +320,7 @@ export default function AgentChat({ email }: AgentChatProps) {
                                 href={res.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="px-2.5 py-1.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-[10px] text-slate-300 font-bold rounded-lg transition-all text-center flex-1"
+                                className="glass-button px-2.5 py-1.5 text-[10px] text-slate-200 font-bold rounded-lg transition-all text-center flex-1"
                               >
                                 🌐 View Website
                               </a>
@@ -348,8 +348,8 @@ export default function AgentChat({ email }: AgentChatProps) {
 
         {/* Action Plan Approval Overlay */}
         {actionPlan && (
-          <div className="p-4 border-t border-slate-800 bg-slate-900/80 backdrop-blur-md space-y-4">
-            <div className="border border-indigo-500/20 bg-indigo-950/10 rounded-xl p-4 space-y-3">
+          <div className="p-4 border-t border-white/10 glass-panel space-y-4 rounded-t-3xl">
+            <div className="border border-indigo-500/30 bg-indigo-950/20 rounded-xl p-4 space-y-3">
               <div className="flex items-center gap-2 text-indigo-400 font-extrabold text-xs">
                 <span>🛡</span> ACTION PREVIEW REQUIRED
               </div>
@@ -391,21 +391,21 @@ export default function AgentChat({ email }: AgentChatProps) {
 
         {/* Input box */}
         {!actionPlan && (
-          <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-800/80 bg-slate-900/20 flex gap-2">
+          <form onSubmit={handleSendMessage} className="p-4 border-t border-white/10 bg-black/20 backdrop-blur-md flex gap-2">
             <input
               type="text"
               placeholder="Ask MOSAIC to find internships, compare tables, or register for events..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={isLoading}
-              className="flex-1 px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-all text-xs"
+              className="flex-1 px-4 py-3 rounded-xl bg-slate-900/40 border border-white/10 text-slate-100 placeholder-slate-400 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/50 transition-all text-xs backdrop-blur-sm shadow-inner"
             />
             <button
               type="submit"
               disabled={isLoading || !input.trim()}
-              className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition-all disabled:opacity-50"
+              className="px-5 py-3 bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-white font-bold text-xs rounded-xl transition-all disabled:opacity-50 shadow-[0_0_15px_rgba(99,102,241,0.4)]"
             >
-              Send
+              Send 🚀
             </button>
           </form>
         )}
@@ -413,8 +413,8 @@ export default function AgentChat({ email }: AgentChatProps) {
 
       {/* Right Pane: Browser Viewport Split-Screen */}
       {isViewportVisible && (
-        <div className="w-1/2 bg-slate-900 flex flex-col h-full border-l border-slate-850">
-          <div className="p-3 bg-slate-950 border-b border-slate-850 flex items-center justify-between text-xs text-slate-400 font-medium">
+        <div className="w-1/2 bg-black/40 backdrop-blur-xl flex flex-col h-full border-l border-white/10">
+          <div className="p-3 border-b border-white/10 flex items-center justify-between text-xs text-slate-300 font-bold bg-black/20">
             <div className="flex items-center gap-2 truncate pr-4">
               <span className="text-emerald-400 text-base">🟢</span>
               <span className="font-mono text-[10px] truncate">{browserUrl || "Loading Page..."}</span>
