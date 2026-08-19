@@ -188,7 +188,7 @@ class AgentOrchestrator:
                 db.commit()
                 
             # Navigate to target URL immediately
-            webcmd_client.run_script(session_id, f'await page.goto("{target_url}");')
+            webcmd_client.run_script(session_id, f'await page.goto("{target_url}", {{ waitUntil: "domcontentloaded", timeout: 10000 }});')
             webcmd_client.run_script(session_id, 'await page.waitForTimeout(2000);')
             
             return self._run_browser_orchestration(db, task_id, f"Fill out application form on {target_url}", profile_data)
@@ -248,7 +248,7 @@ class AgentOrchestrator:
         
         # Go to Google and handle cookie consent if present
         navigation_script = f"""
-        await page.goto("{search_url}");
+        await page.goto("{search_url}", {{ waitUntil: 'domcontentloaded', timeout: 10000 }});
         await page.waitForTimeout(2000);
         await page.evaluate(() => {{
             const btn = Array.from(document.querySelectorAll('button')).find(b => {{
@@ -518,7 +518,7 @@ class AgentOrchestrator:
         elif "internship" in query:
             search_query = f"software engineering internships in {profile_data.get('address', 'Kolkata')} for skills {profile_data.get('skills', 'Python')}"
             session["current_url"] = f"https://www.google.com/search?q={search_query.replace(' ', '+')}"
-            webcmd_client.run_script(session_id, f'await page.goto("{session["current_url"]}");')
+            webcmd_client.run_script(session_id, f'await page.goto("{session["current_url"]}", {{ waitUntil: "domcontentloaded", timeout: 10000 }});')
             screenshot = webcmd_client.get_screenshot(session_id) or screenshot
 
             plan = ActionPlan(
@@ -571,7 +571,7 @@ class AgentOrchestrator:
         elif "table" in query or "laptop" in query:
             search_query = f"buy study table with drawers under 4000 rupees in {profile_data.get('address', 'Kolkata')}" if "table" in query else f"buy programming laptop under 60000 rupees"
             session["current_url"] = f"https://www.google.com/search?q={search_query.replace(' ', '+')}"
-            webcmd_client.run_script(session_id, f'await page.goto("{session["current_url"]}");')
+            webcmd_client.run_script(session_id, f'await page.goto("{session["current_url"]}", {{ waitUntil: "domcontentloaded", timeout: 10000 }});')
             screenshot = webcmd_client.get_screenshot(session_id) or screenshot
 
             plan = ActionPlan(
@@ -625,7 +625,7 @@ class AgentOrchestrator:
             
             # Go to Google and handle cookie consent if present
             navigation_script = f"""
-            await page.goto("{search_url}");
+            await page.goto("{search_url}", {{ waitUntil: 'domcontentloaded', timeout: 10000 }});
             await page.waitForTimeout(2000);
             await page.evaluate(() => {{
                 const btn = Array.from(document.querySelectorAll('button')).find(b => {{
@@ -808,7 +808,7 @@ class AgentOrchestrator:
 
             # Handle browser operations
             elif next_action.action_type == "navigate" and next_action.url:
-                webcmd_client.run_script(session_id, f'await page.goto("{next_action.url}");')
+                webcmd_client.run_script(session_id, f'await page.goto("{next_action.url}", {{ waitUntil: "domcontentloaded", timeout: 10000 }});')
                 session["steps"].append({
                     "action": "navigate",
                     "description": f"Navigated browser viewport to {next_action.url}"
@@ -926,7 +926,7 @@ class AgentOrchestrator:
             }
 
         # Simulate submit click in browser
-        webcmd_client.run_script(session_id, 'await page.goto("https://google.com");')
+        webcmd_client.run_script(session_id, 'await page.goto("https://google.com", { waitUntil: "domcontentloaded", timeout: 10000 });')
         screenshot = webcmd_client.get_screenshot(session_id)
 
         session["steps"].append({
