@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { Globe, Brain, Activity, FolderGit2, User, FileText, LogOut } from "lucide-react";
 
 type TabType = "agent" | "memory" | "activity" | "websites" | "profile" | "documents";
 
@@ -12,14 +13,14 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ activeTab, setActiveTab, email, onLogout }: SidebarProps) {
-  const menuItems = [
-    { id: "agent", label: "Browser Agent", icon: "🌐" },
-    { id: "memory", label: "My Memory", icon: "🧠" },
-    { id: "activity", label: "Activity Log", icon: "📋" },
-    { id: "websites", label: "Learned Sites", icon: "🗂" },
-    { id: "profile", label: "User Profile", icon: "👤" },
-    { id: "documents", label: "Documents", icon: "📄" },
-  ] as const;
+  const menuItems: { id: TabType; label: string; icon: React.ReactNode }[] = [
+    { id: "agent", label: "Browser Agent", icon: <Globe size={18} /> },
+    { id: "memory", label: "My Memory", icon: <Brain size={18} /> },
+    { id: "activity", label: "Activity Log", icon: <Activity size={18} /> },
+    { id: "websites", label: "Learned Sites", icon: <FolderGit2 size={18} /> },
+    { id: "profile", label: "User Profile", icon: <User size={18} /> },
+    { id: "documents", label: "Documents", icon: <FileText size={18} /> },
+  ];
 
   return (
     <aside className="w-64 bg-black/20 backdrop-blur-2xl border-r border-white/10 flex flex-col justify-between shrink-0 h-screen shadow-2xl relative z-20">
@@ -49,7 +50,7 @@ export default function Sidebar({ activeTab, setActiveTab, email, onLogout }: Si
                     : "border-transparent text-slate-300 hover:text-white hover:bg-white/5 hover:border-white/10"
                 }`}
               >
-                <span className="text-base">{item.icon}</span>
+                <span className="flex items-center justify-center w-5 h-5">{item.icon}</span>
                 {item.label}
               </button>
             );
@@ -73,7 +74,7 @@ export default function Sidebar({ activeTab, setActiveTab, email, onLogout }: Si
           onClick={onLogout}
           className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold text-rose-300 hover:text-rose-200 hover:bg-rose-500/20 border border-transparent hover:border-rose-500/30 transition-all shadow-lg hover:shadow-rose-500/20"
         >
-          <span>🚪</span> Logout Session
+          <LogOut size={16} /> Logout Session
         </button>
       </div>
     </aside>

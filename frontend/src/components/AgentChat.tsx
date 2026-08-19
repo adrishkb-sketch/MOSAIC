@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { api, ChatMessage, ActionPlanItem, SearchResultItem } from "@/lib/api";
+import { Brain, Globe, HelpCircle, Settings, Hourglass, RefreshCw, CheckCircle, XCircle, Sparkles, StopCircle, Shield, Zap, Send } from "lucide-react";
 
 interface AgentChatProps {
   email: string;
@@ -237,16 +238,16 @@ export default function AgentChat({ email }: AgentChatProps) {
 
   const getStatusText = () => {
     switch (status) {
-      case "thinking": return "🤔 Thinking...";
-      case "browsing": return "🌐 Browsing Web...";
-      case "asking": return "❓ Awaiting input...";
-      case "learning": return "🧠 Learning site structure...";
-      case "preparing": return "⚙️ Preparing checkout...";
-      case "waiting_approval": return "⏳ Awaiting your approval...";
-      case "recovering": return "🔄 Recovering from DOM drift...";
-      case "completed": return "✅ Task completed!";
-      case "failed": return "❌ Task failed.";
-      default: return "✨ Ready";
+      case "thinking": return <span className="flex items-center gap-1.5"><Brain size={14} /> Thinking...</span>;
+      case "browsing": return <span className="flex items-center gap-1.5"><Globe size={14} /> Browsing Web...</span>;
+      case "asking": return <span className="flex items-center gap-1.5"><HelpCircle size={14} /> Awaiting input...</span>;
+      case "learning": return <span className="flex items-center gap-1.5"><Brain size={14} /> Learning site structure...</span>;
+      case "preparing": return <span className="flex items-center gap-1.5"><Settings size={14} /> Preparing checkout...</span>;
+      case "waiting_approval": return <span className="flex items-center gap-1.5"><Hourglass size={14} /> Awaiting your approval...</span>;
+      case "recovering": return <span className="flex items-center gap-1.5"><RefreshCw size={14} /> Recovering from DOM drift...</span>;
+      case "completed": return <span className="flex items-center gap-1.5"><CheckCircle size={14} /> Task completed!</span>;
+      case "failed": return <span className="flex items-center gap-1.5"><XCircle size={14} /> Task failed.</span>;
+      default: return <span className="flex items-center gap-1.5"><Sparkles size={14} /> Ready</span>;
     }
   };
 
@@ -280,9 +281,9 @@ export default function AgentChat({ email }: AgentChatProps) {
             {status !== "idle" && (
               <button
                 onClick={handleCancelTask}
-                className="px-2.5 py-1 text-[10px] font-bold text-rose-400 hover:text-rose-350 bg-rose-950/20 border border-rose-900/30 rounded-lg transition-all flex-shrink-0"
+                className="px-2.5 py-1 text-[10px] font-bold text-rose-400 hover:text-rose-350 bg-rose-950/20 border border-rose-900/30 rounded-lg transition-all flex-shrink-0 flex items-center gap-1.5"
               >
-                🛑 Stop Agent
+                <StopCircle size={14} /> Stop Agent
               </button>
             )}
           </div>
@@ -320,15 +321,15 @@ export default function AgentChat({ email }: AgentChatProps) {
                                 href={res.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="glass-button px-2.5 py-1.5 text-[10px] text-slate-200 font-bold rounded-lg transition-all text-center flex-1"
+                                className="glass-button px-2.5 py-1.5 text-[10px] text-slate-200 font-bold rounded-lg transition-all text-center flex-1 flex items-center justify-center gap-1.5"
                               >
-                                🌐 View Website
+                                <Globe size={12} /> View Website
                               </a>
                               <button
                                 onClick={() => handleApply(res.title, res.url)}
-                                className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-[10px] text-white font-extrabold rounded-lg transition-all text-center flex-1 flex items-center justify-center gap-1"
+                                className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-[10px] text-white font-extrabold rounded-lg transition-all text-center flex-1 flex items-center justify-center gap-1.5"
                               >
-                                ⚡ Apply via MOSAIC
+                                <Zap size={12} /> Apply via MOSAIC
                               </button>
                             </div>
                           </div>
@@ -351,7 +352,7 @@ export default function AgentChat({ email }: AgentChatProps) {
           <div className="p-4 border-t border-white/10 glass-panel space-y-4 rounded-t-3xl">
             <div className="border border-indigo-500/30 bg-indigo-950/20 rounded-xl p-4 space-y-3">
               <div className="flex items-center gap-2 text-indigo-400 font-extrabold text-xs">
-                <span>🛡</span> ACTION PREVIEW REQUIRED
+                <Shield size={16} /> ACTION PREVIEW REQUIRED
               </div>
               <p className="text-slate-300 text-xs">
                 MOSAIC has prepared checkout inputs on <span className="font-semibold text-white">{actionPlan.website}</span>.
@@ -403,9 +404,9 @@ export default function AgentChat({ email }: AgentChatProps) {
             <button
               type="submit"
               disabled={isLoading || !input.trim()}
-              className="px-5 py-3 bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-white font-bold text-xs rounded-xl transition-all disabled:opacity-50 shadow-[0_0_15px_rgba(99,102,241,0.4)]"
+              className="px-5 py-3 bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-white font-bold text-xs rounded-xl transition-all disabled:opacity-50 shadow-[0_0_15px_rgba(99,102,241,0.4)] flex items-center gap-2"
             >
-              Send 🚀
+              Send <Send size={14} />
             </button>
           </form>
         )}
@@ -416,7 +417,7 @@ export default function AgentChat({ email }: AgentChatProps) {
         <div className="w-1/2 bg-black/40 backdrop-blur-xl flex flex-col h-full border-l border-white/10">
           <div className="p-3 border-b border-white/10 flex items-center justify-between text-xs text-slate-300 font-bold bg-black/20">
             <div className="flex items-center gap-2 truncate pr-4">
-              <span className="text-emerald-400 text-base">🟢</span>
+              <Globe size={16} className="text-emerald-400" />
               <span className="font-mono text-[10px] truncate">{browserUrl || "Loading Page..."}</span>
             </div>
             <span className="font-bold text-[9px] uppercase tracking-wider bg-slate-850 px-2 py-0.5 rounded text-slate-400">

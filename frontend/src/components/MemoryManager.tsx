@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { api, MemoryItem, MemoryWhyResponse } from "@/lib/api";
+import { Brain, Save, Edit2, Trash2, Search, Shield, X, RotateCcw } from "lucide-react";
 
 interface MemoryManagerProps {
   email: string;
@@ -106,7 +107,7 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-200 to-violet-200 flex items-center gap-2">
-            🧠 Memory & Transparency Center
+            <Brain size={28} className="text-indigo-400" /> Memory & Transparency Center
           </h1>
           <p className="text-slate-300/80 text-sm mt-2">
             Review and manage all information MOSAIC currently stores about you in your isolated space.
@@ -115,9 +116,9 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
         {memories.length > 0 && (
           <button
             onClick={handleClearAll}
-            className="px-4 py-2 text-xs font-bold text-rose-400 hover:text-rose-350 bg-rose-950/20 hover:bg-rose-950/40 border border-rose-900/30 rounded-xl transition-all"
+            className="px-4 py-2 text-xs font-bold text-rose-400 hover:text-rose-350 bg-rose-950/20 hover:bg-rose-950/40 border border-rose-900/30 rounded-xl transition-all flex items-center gap-2"
           >
-            🗑 Clear My Memory
+            <Trash2 size={14} /> Clear My Memory
           </button>
         )}
       </div>
@@ -128,7 +129,7 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
         </div>
       ) : memories.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center p-12 border border-dashed border-white/20 rounded-3xl glass-card">
-          <span className="text-4xl mb-4">🧠</span>
+          <Brain size={40} className="mb-4 text-slate-600" />
           <h3 className="text-slate-200 font-bold text-base">Your memory is completely empty</h3>
           <p className="text-slate-400 text-xs mt-1 text-center max-w-sm">
             Start talking to the agent or fill out your profile details to populate your private profile variables.
@@ -177,9 +178,9 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
                   <>
                     <button
                       onClick={saveEdit}
-                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-bold transition-all"
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1"
                     >
-                      Save
+                      <Save size={12} /> Save
                     </button>
                     <button
                       onClick={() => setEditingItem(null)}
@@ -194,7 +195,7 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
                       onClick={() => handleWhyClick(item.id)}
                       className="text-[10px] font-bold text-indigo-400 hover:text-indigo-350 flex items-center gap-1"
                     >
-                      🔍 Why did MOSAIC use this?
+                      <Search size={12} /> Why did MOSAIC use this?
                     </button>
                     <div className="flex items-center gap-1">
                       <button
@@ -202,14 +203,14 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
                         className="p-1.5 text-[10px] font-bold text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-all"
                         title="Edit Memory"
                       >
-                        ✏️
+                        <Edit2 size={12} />
                       </button>
                       <button
                         onClick={() => handleDelete(item.id)}
                         className="p-1.5 text-[10px] font-bold text-rose-400 hover:text-rose-350 hover:bg-rose-950/20 rounded-lg transition-all"
                         title="Forget Memory"
                       >
-                        🗑
+                        <Trash2 size={12} />
                       </button>
                     </div>
                   </>
@@ -228,11 +229,11 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
               onClick={() => setSelectedWhy(null)}
               className="absolute top-4 right-4 text-slate-500 hover:text-slate-300 text-lg"
             >
-              ✕
+              <X size={20} />
             </button>
 
             <div className="flex items-center gap-3 mb-6">
-              <span className="text-2xl">🛡</span>
+              <span className="text-2xl"><Shield size={24} className="text-indigo-400" /></span>
               <div>
                 <h3 className="font-extrabold text-slate-100 text-base">Data Usage Transparency Report</h3>
                 <p className="text-xs text-slate-400">Auditing the private profile key: "{selectedWhy.key}"</p>
@@ -259,11 +260,11 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
               <div className="border-y border-slate-800/80 py-4 my-2 space-y-2">
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-slate-400 font-medium">Shared with other users:</span>
-                  <span className="font-bold text-rose-500 flex items-center gap-1">❌ No (Always Private)</span>
+                  <span className="font-bold text-rose-500 flex items-center gap-1">No (Always Private)</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-slate-400 font-medium">Exported to Global Web Knowledge:</span>
-                  <span className="font-bold text-rose-500 flex items-center gap-1">❌ No (Sanitized Out)</span>
+                  <span className="font-bold text-rose-500 flex items-center gap-1">No (Sanitized Out)</span>
                 </div>
               </div>
 

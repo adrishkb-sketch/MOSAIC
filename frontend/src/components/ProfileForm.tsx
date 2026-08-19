@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { api, MemoryItem } from "@/lib/api";
+import { User, Info, GraduationCap, Briefcase, CheckCircle2 } from "lucide-react";
 
 interface ProfileFormProps {
   email: string;
@@ -105,7 +106,7 @@ export default function ProfileForm({ email }: ProfileFormProps) {
     <div className="flex-1 flex flex-col p-8 overflow-y-auto max-h-screen">
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-200 to-violet-200 flex items-center gap-2">
-          👤 Universal Profile
+          <User size={28} className="text-indigo-400" /> Universal Profile
         </h1>
         <p className="text-slate-300/80 text-sm mt-2">
           Provide your information once. MOSAIC will retrieve these details when mapping form fields, protecting your credentials.
@@ -116,7 +117,7 @@ export default function ProfileForm({ email }: ProfileFormProps) {
         {/* Section 1: Basic details */}
         <div className="glass-panel rounded-3xl p-6 space-y-4">
           <h3 className="text-slate-200 font-bold text-sm tracking-wide uppercase border-b border-white/10 pb-2 flex items-center gap-2">
-            <span>ℹ️</span> Basic Information
+            <Info size={16} className="text-indigo-400" /> Basic Information
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -167,7 +168,7 @@ export default function ProfileForm({ email }: ProfileFormProps) {
         {/* Section 2: Education */}
         <div className="glass-panel rounded-3xl p-6 space-y-4">
           <h3 className="text-slate-200 font-bold text-sm tracking-wide uppercase border-b border-white/10 pb-2 flex items-center gap-2">
-            <span>🎓</span> Academic Information
+            <GraduationCap size={16} className="text-indigo-400" /> Academic Information
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
@@ -209,7 +210,7 @@ export default function ProfileForm({ email }: ProfileFormProps) {
         {/* Section 3: Professional detail */}
         <div className="glass-panel rounded-3xl p-6 space-y-4">
           <h3 className="text-slate-200 font-bold text-sm tracking-wide uppercase border-b border-white/10 pb-2 flex items-center gap-2">
-            <span>💼</span> Professional Profile & Links
+            <Briefcase size={16} className="text-indigo-400" /> Professional Profile & Links
           </h3>
           <div className="space-y-4">
             <div>
@@ -273,8 +274,8 @@ export default function ProfileForm({ email }: ProfileFormProps) {
             {isSaving ? "Saving to My Memory..." : "Save Profile Details"}
           </button>
           {saveSuccess && (
-            <span className="text-emerald-400 text-xs font-bold flex items-center gap-1 animate-bounce">
-              ✓ Successfully synced to My Memory!
+            <span className="text-emerald-400 text-xs font-bold flex items-center gap-1.5 animate-bounce">
+              <CheckCircle2 size={14} /> Successfully synced to My Memory!
             </span>
           )}
         </div>

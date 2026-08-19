@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { api, SharedWebsiteItem } from "@/lib/api";
+import { FolderGit2, Shield, Settings, RefreshCw } from "lucide-react";
 
 export default function LearnedWebsites() {
   const [websites, setWebsites] = useState<SharedWebsiteItem[]>([]);
@@ -34,7 +35,7 @@ export default function LearnedWebsites() {
     <div className="flex-1 flex flex-col p-8 overflow-y-auto max-h-screen">
       <div className="mb-6">
         <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-200 to-violet-200 flex items-center gap-2">
-          🗂️ Learned Web Knowledge
+          <FolderGit2 size={28} className="text-indigo-400" /> Learned Web Knowledge
         </h1>
         <p className="text-slate-300/80 text-sm mt-2">
           Review structural sitemaps and automation workflows learned dynamically by MOSAIC across the web.
@@ -43,7 +44,7 @@ export default function LearnedWebsites() {
 
       {/* Security notice banner */}
       <div className="glass-card border-indigo-500/30 rounded-3xl p-5 mb-8 flex items-start gap-4">
-        <span className="text-2xl">🛡</span>
+        <Shield size={24} className="text-indigo-400 shrink-0" />
         <div>
           <h4 className="font-bold text-slate-200 text-sm">Privacy Isolation Policy</h4>
           <p className="text-slate-400 text-xs mt-1 leading-relaxed">
@@ -59,7 +60,7 @@ export default function LearnedWebsites() {
         </div>
       ) : websites.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center p-12 border border-dashed border-white/20 rounded-3xl glass-card">
-          <span className="text-4xl mb-4">🗂</span>
+          <FolderGit2 size={40} className="mb-4 text-slate-600" />
           <h3 className="text-slate-200 font-bold text-base">No shared websites found</h3>
           <p className="text-slate-400 text-xs mt-1 text-center max-w-sm">
             Once Webcmd automates new domains successfully, the learned selectors and sitemaps will populate here.
@@ -90,8 +91,8 @@ export default function LearnedWebsites() {
                 <div className="space-y-2">
                   {Object.entries(parseJSON(site.workflows, {})).map(([name, desc]: [string, any], idx) => (
                     <div key={idx} className="bg-slate-950/60 border border-slate-850 p-2.5 rounded-xl text-xs">
-                      <span className="font-bold text-indigo-400 uppercase tracking-wide text-[10px] block mb-1">
-                        ⚙ {name} workflow
+                      <span className="font-bold text-indigo-400 uppercase tracking-wide text-[10px] flex items-center gap-1.5 mb-1">
+                        <Settings size={12} /> {name} workflow
                       </span>
                       <p className="text-slate-300 font-medium leading-relaxed">{desc}</p>
                     </div>
@@ -117,7 +118,7 @@ export default function LearnedWebsites() {
                 <ul className="space-y-1.5 list-inside text-xs text-slate-450 font-medium leading-relaxed pl-1">
                   {parseJSON(site.fallback_strategies, []).map((strat: string, idx: number) => (
                     <li key={idx} className="flex items-start gap-2">
-                      <span className="text-amber-500">🔄</span>
+                      <RefreshCw size={14} className="text-amber-500 shrink-0 mt-0.5" />
                       <span>{strat}</span>
                     </li>
                   ))}
