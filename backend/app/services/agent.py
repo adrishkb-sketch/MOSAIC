@@ -289,6 +289,17 @@ class AgentOrchestrator:
         search_items = []
         summary = ""
         
+        is_job_query = any(w in query.lower() for w in ["job", "intern", "career", "work", "position", "recruit"])
+        is_shopping_query = any(w in query.lower() for w in ["buy", "price", "shop", "purchase", "store", "refrigerator", "fridge", "laptop", "table"])
+        
+        intent_description = ""
+        if is_job_query:
+            intent_description = "You are a smart job portal AI. Filter and extract ONLY direct job application forms or career portal links. Do NOT include forums (like Quora or Reddit), blog posts, news, or general advice articles."
+        elif is_shopping_query:
+            intent_description = "You are a smart shopping assistant. Filter and extract ONLY direct product purchase pages, official brand product catalogs, or e-commerce shop links (e.g. Amazon, Flipkart, Croma, brand direct store). Do NOT include product reviews, blogs, comparison forums (like Quora or Reddit), or discussion threads."
+        else:
+            intent_description = "Filter and extract highly relevant, direct action or information page links matching the user query. Do NOT include forums, blogs, or social media posts."
+
         if gemini_service.is_configured():
             try:
                 # Use Gemini to extract, filter, and optionally add directly generated results
@@ -297,9 +308,10 @@ class AgentOrchestrator:
                 Raw links extracted from search page:
                 {json.dumps(raw_results[:100])}
                 
-                You are a smart job portal AI. First, filter and extract a list of at most 8 real, highly relevant search results/job openings matching the user's query from the raw links.
-                Additionally, if there are fewer than 5 high-quality results from the search page, you can directly generate 2-3 highly relevant internship openings with REAL apply links from well-known career sites (e.g. Google Careers, GitHub Careers, Amazon, etc.) based on your knowledge.
-                For each result, extract the title/role, company/source name, direct URL, and location.
+                {intent_description}
+                Extract a list of at most 8 real, highly relevant action-oriented search results matching the user's query from the raw links.
+                Additionally, if there are fewer than 5 high-quality results from the search page, you can directly generate 2-3 highly relevant direct links from well-known official sites (e.g. official brand stores for shopping, or major career sites for jobs) based on your knowledge.
+                For each result, extract the title/name, company/source, direct URL, and location.
                 Provide a concise, friendly summary of what you found.
                 """
                 
@@ -329,19 +341,41 @@ class AgentOrchestrator:
                 
         # If Gemini is not configured or failed, do local filtering
         if not search_items:
-            # Let's filter links containing useful keywords
+            blacklist = [
+                "quora.com", "reddit.com", "pinterest.com", "facebook.com", 
+                "twitter.com", "instagram.com", "medium.com", "blogspot.com", 
+                "wordpress.com", "stackoverflow.com", "youtube.com", 
+                "wikipedia.org", "google.com", "support.google", "github.com",
+                "justdial.com", "olx.in", "quikr.com", "indiamart.com"
+            ]
             filtered_links = []
-            keywords = ["job", "career", "intern", "recruit", "detail", "apply", "post", "work", "position"]
+            
+            # Identify intent
+            is_job = any(w in query.lower() for w in ["job", "intern", "career", "work", "position"])
+            is_shop = any(w in query.lower() for w in ["buy", "price", "shop", "purchase", "store", "refrigerator", "fridge", "laptop", "table"])
+            
+            job_keywords = ["job", "career", "intern", "recruit", "apply", "post", "work", "position"]
+            shop_keywords = ["product", "buy", "shop", "store", "amazon", "flipkart", "croma", "reliancedigital", "price", "item", "deal", "refrigerator", "fridge", "laptop", "table"]
+            
             for r in raw_results:
                 url = r["href"].lower()
                 text = r["text"].lower()
-                # prioritize links containing keywords
-                if any(k in url or k in text for k in keywords):
+                
+                # Check blacklist
+                if any(b in url for b in blacklist):
+                    continue
+                    
+                if is_job:
+                    if any(k in url or k in text for k in job_keywords):
+                        filtered_links.append(r)
+                elif is_shop:
+                    if any(k in url or k in text for k in shop_keywords):
+                        filtered_links.append(r)
+                else:
                     filtered_links.append(r)
             
-            # fallback to any links if filtered list is too small
             if len(filtered_links) < 3:
-                filtered_links = raw_results[:8]
+                filtered_links = [r for r in raw_results if not any(b in r["href"].lower() for b in blacklist)][:8]
             else:
                 filtered_links = filtered_links[:8]
                 
