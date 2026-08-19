@@ -1017,8 +1017,44 @@ class AgentOrchestrator:
                 "browser_active": False
             }
 
-        # Simulate submit click in browser
-        webcmd_client.run_script(session_id, 'await page.goto("https://google.com", { waitUntil: "domcontentloaded", timeout: 10000 });')
+        # Actually execute the final submit action in the browser
+        submit_script = """
+        await page.evaluate(() => {
+            // Find and click the submit button
+            const selectors = [
+                'button[type="submit"]',
+                'input[type="submit"]',
+                '#submit',
+                '#submit-btn',
+                '.submit-btn',
+                '.submit',
+                'button.btn-primary',
+                'button.primary'
+            ];
+            for (const selector of selectors) {
+                const el = document.querySelector(selector);
+                if (el) {
+                    el.click();
+                    return true;
+                }
+            }
+            
+            // Text-based fallback search
+            const buttons = Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"], a.btn'));
+            const matchText = (text) => {
+                const t = text.toLowerCase();
+                return t.includes('submit') || t.includes('apply') || t.includes('register') || t.includes('confirm') || t.includes('checkout') || t.includes('book') || t.includes('join');
+            };
+            const btn = buttons.find(b => matchText(b.innerText || b.value || ""));
+            if (btn) {
+                btn.click();
+                return true;
+            }
+            return false;
+        });
+        """
+        webcmd_client.run_script(session_id, submit_script)
+        webcmd_client.run_script(session_id, 'await page.waitForTimeout(4000);')
         screenshot = webcmd_client.get_screenshot(session_id)
 
         session["steps"].append({
