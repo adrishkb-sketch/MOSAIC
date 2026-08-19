@@ -177,16 +177,21 @@ class AgentOrchestrator:
             orig_req = session.get("request", "").lower()
             if any(w in orig_req for w in ["buy", "shop", "purchase", "refrigerator", "fridge", "laptop", "table", "product", "price"]):
                 session["request"] = f"Automate purchase/checkout for product at {target_url}"
-            elif any(w in orig_req for w in ["register", "webinar", "event", "sign up", "join"]):
+            elif any(w in orig_req for w in ["register", "webinar", "event", "sign up", "join", "attend", "conference", "summit", "meetup", "seminar"]):
                 session["request"] = f"Register for event/webinar at {target_url}"
             else:
                 session["request"] = f"Apply for internship/job at {target_url}"
                 
             session["status"] = "browsing"
             
-            if not session.get("session_id"):
-                session["session_id"] = webcmd_client.create_session()
-                
+            # Always close the previous search session and start a fresh one for the target website automation
+            if session.get("session_id"):
+                try:
+                    webcmd_client.close_session(session["session_id"])
+                except Exception:
+                    pass
+            session["session_id"] = webcmd_client.create_session()
+            
             session_id = session["session_id"]
             session["current_url"] = target_url
             
@@ -558,7 +563,7 @@ class AgentOrchestrator:
             plan = ActionPlan(
                 task_id=task_id,
                 user_id=session["email"],
-                goal=f"Apply for job at {current_url}",
+                goal=session["request"],
                 website=current_url.split("/")[2] if "//" in current_url else "website",
                 actions=json.dumps([
                     {"action_type": "fill", "description": "Fill name field", "selector": "#name", "value": profile_data.get("name", "Adrish")},
