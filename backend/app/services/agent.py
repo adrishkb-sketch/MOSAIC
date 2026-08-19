@@ -246,9 +246,20 @@ class AgentOrchestrator:
         search_url = f"https://www.google.com/search?q={search_query.replace(' ', '+')}"
         session["current_url"] = search_url
         
-        # Go to Google
-        webcmd_client.run_script(session_id, f'await page.goto("{search_url}");')
-        webcmd_client.run_script(session_id, 'await page.waitForTimeout(2000);')
+        # Go to Google and handle cookie consent if present
+        navigation_script = f"""
+        await page.goto("{search_url}");
+        await page.waitForTimeout(2000);
+        await page.evaluate(() => {{
+            const btn = Array.from(document.querySelectorAll('button')).find(b => {{
+                const txt = b.innerText.trim().toLowerCase();
+                return txt.includes('accept all') || txt.includes('i agree') || txt.includes('agree') || txt.includes('consent');
+            }});
+            if (btn) btn.click();
+        }});
+        await page.waitForTimeout(2000);
+        """
+        webcmd_client.run_script(session_id, navigation_script)
         
         # Scrape links from the search page
         scrape_script = """
