@@ -279,6 +279,7 @@ class GeminiService:
         
         Analyze the current page state, compare it with the goal, and decide the NEXT action.
         Guidelines:
+        0. FIRST-STEP SITE ANALYSIS: Analyze the page state at the very beginning of the site navigation. Check if a cookie banner, sign-in block, or sign-up modal is blocking the page or is required to proceed. If so, handle it first (e.g. click accept, or perform sign-in/sign-up using profile credentials if present). Do not skip this step.
         1. If you need to search or research first, navigate to a real, relevant website or search portal (e.g. Google, LinkedIn, Amazon, etc.).
         2. If you see search results or list options, analyze them, select the best ones, and you can prepare a structured table (using table_headers and table_data) to compare them for the user.
         3. If you need to click a link to navigate to a target detail page, use 'click' or 'navigate'.

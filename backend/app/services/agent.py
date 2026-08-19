@@ -169,10 +169,19 @@ class AgentOrchestrator:
                     "browser_active": False
                 }
 
-        # Check for direct apply click
+        # Check for direct action/apply click
         if message.startswith("apply_for:"):
             target_url = message.split("apply_for:")[1].strip()
-            session["request"] = f"Apply for internship/job at {target_url}"
+            
+            # Formulate goal dynamically based on original request
+            orig_req = session.get("request", "").lower()
+            if any(w in orig_req for w in ["buy", "shop", "purchase", "refrigerator", "fridge", "laptop", "table", "product", "price"]):
+                session["request"] = f"Automate purchase/checkout for product at {target_url}"
+            elif any(w in orig_req for w in ["register", "webinar", "event", "sign up", "join"]):
+                session["request"] = f"Register for event/webinar at {target_url}"
+            else:
+                session["request"] = f"Apply for internship/job at {target_url}"
+                
             session["status"] = "browsing"
             
             if not session.get("session_id"):
@@ -310,8 +319,14 @@ class AgentOrchestrator:
                 
                 {intent_description}
                 Extract a list of at most 8 real, highly relevant action-oriented search results matching the user's query from the raw links.
+                Specifically:
+                - For shopping/product queries, search the link title/text for any price (e.g. ₹15,000, $200, Rs. 12000, etc.) and populate the 'price' field.
+                - For job/internship queries, search the link title/text for stipend/salary (e.g. ₹10,000/month, $20/hr, etc.) and populate the 'stipend' field.
+                - For webinars/events, find dates/deadlines and populate the 'deadline' field.
+                - Set the 'type' field to "shopping" (if product/e-commerce), "job" (if internship/career), "event" (if webinar/seminar/meetup), or "general".
+                
                 Additionally, if there are fewer than 5 high-quality results from the search page, you can directly generate 2-3 highly relevant direct links from well-known official sites (e.g. official brand stores for shopping, or major career sites for jobs) based on your knowledge.
-                For each result, extract the title/name, company/source, direct URL, and location.
+                For each result, extract the title/name, company/source, direct URL, location, and the extracted context details (price, stipend, deadline, type).
                 Provide a concise, friendly summary of what you found.
                 """
                 
@@ -321,6 +336,10 @@ class AgentOrchestrator:
                     company: Optional[str] = None
                     url: str
                     location: Optional[str] = None
+                    price: Optional[str] = None
+                    stipend: Optional[str] = None
+                    deadline: Optional[str] = None
+                    type: Optional[str] = "general"
                     
                 class SearchResultsResponse(BaseModel):
                     items: List[SearchResultItem]
@@ -333,7 +352,11 @@ class AgentOrchestrator:
                         "title": item.title,
                         "company": item.company or "Web Link",
                         "url": item.url,
-                        "location": item.location or ""
+                        "location": item.location or "",
+                        "price": item.price,
+                        "stipend": item.stipend,
+                        "deadline": item.deadline,
+                        "type": item.type or "general"
                     })
                 summary = parsed_res.summary
             except Exception as e:
@@ -353,6 +376,7 @@ class AgentOrchestrator:
             # Identify intent
             is_job = any(w in query.lower() for w in ["job", "intern", "career", "work", "position"])
             is_shop = any(w in query.lower() for w in ["buy", "price", "shop", "purchase", "store", "refrigerator", "fridge", "laptop", "table"])
+            is_evt = any(w in query.lower() for w in ["webinar", "event", "seminar", "meetup", "register"])
             
             job_keywords = ["job", "career", "intern", "recruit", "apply", "post", "work", "position"]
             shop_keywords = ["product", "buy", "shop", "store", "amazon", "flipkart", "croma", "reliancedigital", "price", "item", "deal", "refrigerator", "fridge", "laptop", "table"]
@@ -379,6 +403,7 @@ class AgentOrchestrator:
             else:
                 filtered_links = filtered_links[:8]
                 
+            import re
             for idx, r in enumerate(filtered_links):
                 # Clean title
                 title = r["text"].split("\n")[0].strip()
@@ -390,11 +415,39 @@ class AgentOrchestrator:
                 domain = parsed_uri.netloc.replace("www.", "")
                 company = domain.split(".")[0].capitalize()
                 
+                r_type = "general"
+                if is_job:
+                    r_type = "job"
+                elif is_shop:
+                    r_type = "shopping"
+                elif is_evt:
+                    r_type = "event"
+                    
+                price_val = None
+                stipend_val = None
+                deadline_val = None
+                
+                # Simple extraction from title/anchor text
+                price_match = re.search(r'(?:₹|Rs\.?|\$)\s*\d+(?:,\d+)*(?:\.\d+)?', r["text"])
+                if price_match:
+                    if r_type == "shopping":
+                        price_val = price_match.group(0)
+                    elif r_type == "job":
+                        stipend_val = price_match.group(0)
+                        
+                deadline_match = re.search(r'(?:apply by|deadline|before|last date|date:?)\s*([a-zA-Z0-9\s]+)', r["text"].lower())
+                if deadline_match:
+                    deadline_val = deadline_match.group(1).strip().capitalize()
+                
                 search_items.append({
                     "title": title or f"Search Result #{idx+1}",
                     "company": company,
                     "url": r["href"],
-                    "location": profile_data.get("address", "")
+                    "location": profile_data.get("address", ""),
+                    "price": price_val,
+                    "stipend": stipend_val,
+                    "deadline": deadline_val,
+                    "type": r_type
                 })
             summary = f"I found {len(search_items)} matches for '{query}' in the web search."
 

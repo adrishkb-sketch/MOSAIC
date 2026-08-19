@@ -12,6 +12,8 @@ interface AgentChatProps {
 
 export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
   const [showLiveViewport, setShowLiveViewport] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<string>("all");
+  const [sortOrder, setSortOrder] = useState<string>("default");
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       sender: "agent",
@@ -326,37 +328,112 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
                   }`}
                 >
                   <p className="whitespace-pre-line">{msg.text}</p>
-                  {isAgent && msg.results && msg.results.length > 0 && (
-                    <div className="mt-4 space-y-2 border-t border-slate-800 pt-3">
-                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Search Results:</p>
-                      <div className="grid grid-cols-1 gap-2.5">
-                        {msg.results.map((res, rIdx) => (
-                          <div key={rIdx} className="bg-slate-950 border border-slate-850 rounded-xl p-3 flex flex-col justify-between gap-3 hover:border-slate-800 transition-all">
-                            <div>
-                              <h4 className="font-bold text-white text-[11px] leading-tight line-clamp-1">{res.title}</h4>
-                              <p className="text-slate-400 text-[10px] mt-1 line-clamp-2">{res.description}</p>
-                            </div>
-                            <div className="flex items-center gap-2 mt-1">
-                              <a
-                                href={res.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="glass-button px-2.5 py-1.5 text-[10px] text-slate-200 font-bold rounded-lg transition-all text-center flex-1 flex items-center justify-center gap-1.5"
+                  {isAgent && msg.results && msg.results.length > 0 && (() => {
+                    let filtered = msg.results.filter(res => {
+                      if (activeFilter === "all") return true;
+                      if (activeFilter === "shopping") return res.type === "shopping";
+                      if (activeFilter === "job") return res.type === "job";
+                      if (activeFilter === "event") return res.type === "event";
+                      return true;
+                    });
+                    
+                    const getPriceValue = (priceStr?: string) => {
+                      if (!priceStr) return 0;
+                      const clean = priceStr.replace(/[^0-9]/g, "");
+                      return clean ? parseInt(clean, 10) : 0;
+                    };
+                    
+                    if (sortOrder === "price_asc") {
+                      filtered = [...filtered].sort((a, b) => getPriceValue(a.price) - getPriceValue(b.price));
+                    } else if (sortOrder === "price_desc") {
+                      filtered = [...filtered].sort((a, b) => getPriceValue(b.price) - getPriceValue(a.price));
+                    }
+                    
+                    return (
+                      <div className="mt-4 space-y-3 border-t border-white/10 pt-3">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <p className="text-[10px] uppercase font-bold text-slate-450 tracking-wider">Search Results ({filtered.length}):</p>
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={activeFilter}
+                              onChange={(e) => setActiveFilter(e.target.value)}
+                              className="bg-slate-900 border border-white/10 text-[9px] text-slate-300 font-bold rounded px-1.5 py-0.5 outline-none cursor-pointer hover:border-slate-700 transition-all"
+                            >
+                              <option value="all">🔍 All Results</option>
+                              <option value="shopping">🛒 E-Commerce / Buy</option>
+                              <option value="job">💼 Jobs / Internships</option>
+                              <option value="event">📅 Webinars / Events</option>
+                            </select>
+                            
+                            {filtered.some(r => r.price) && (
+                              <select
+                                value={sortOrder}
+                                onChange={(e) => setSortOrder(e.target.value)}
+                                className="bg-slate-900 border border-white/10 text-[9px] text-slate-300 font-bold rounded px-1.5 py-0.5 outline-none cursor-pointer hover:border-slate-700 transition-all"
                               >
-                                <Globe size={12} /> View Website
-                              </a>
-                              <button
-                                onClick={() => handleApply(res.title, res.url)}
-                                className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-[10px] text-white font-extrabold rounded-lg transition-all text-center flex-1 flex items-center justify-center gap-1.5"
-                              >
-                                <Zap size={12} /> {res.url.includes("job") || res.url.includes("career") || res.url.includes("intern") || res.title.toLowerCase().includes("intern") ? "Apply via MOSAIC" : "Automate via MOSAIC"}
-                              </button>
-                            </div>
+                                <option value="default">📊 Default Sort</option>
+                                <option value="price_asc">💵 Price: Low to High</option>
+                                <option value="price_desc">💵 Price: High to Low</option>
+                              </select>
+                            )}
                           </div>
-                        ))}
+                        </div>
+                        
+                        {filtered.length === 0 ? (
+                          <p className="text-[10px] text-slate-500 italic text-center py-2">No results matching active filter.</p>
+                        ) : (
+                          <div className="grid grid-cols-1 gap-2.5">
+                            {filtered.map((res, rIdx) => (
+                              <div key={rIdx} className="bg-slate-950 border border-white/5 rounded-xl p-3 flex flex-col justify-between gap-3 hover:border-white/15 hover:shadow-[0_4px_12px_rgba(255,255,255,0.02)] transition-all duration-300">
+                                <div>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <h4 className="font-bold text-white text-[11px] leading-tight line-clamp-1 flex-1">{res.title}</h4>
+                                    {res.type && (
+                                      <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider flex-shrink-0 ${
+                                        res.type === "shopping" ? "bg-emerald-950/45 text-emerald-400 border border-emerald-900/30" :
+                                        res.type === "job" ? "bg-indigo-950/45 text-indigo-400 border border-indigo-900/30" :
+                                        res.type === "event" ? "bg-amber-950/45 text-amber-400 border border-amber-900/30" :
+                                        "bg-slate-900 text-slate-400 border border-slate-800"
+                                      }`}>
+                                        {res.type}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-slate-400 text-[10px] mt-1 line-clamp-2">{res.description}</p>
+                                  
+                                  {(res.price || res.stipend || res.deadline || res.company || res.location) && (
+                                    <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-2.5 pt-2.5 border-t border-white/5 text-[9px]">
+                                      {res.company && <div className="text-slate-400 font-medium">🏢 <span className="text-slate-200 ml-1">{res.company}</span></div>}
+                                      {res.location && <div className="text-slate-400 font-medium">📍 <span className="text-slate-200 ml-1">{res.location}</span></div>}
+                                      {res.price && <div className="text-slate-400 font-extrabold text-emerald-400">💵 Price: <span className="text-emerald-350 font-extrabold ml-1">{res.price}</span></div>}
+                                      {res.stipend && <div className="text-slate-400 font-extrabold text-indigo-400">💰 Stipend: <span className="text-indigo-350 font-extrabold ml-1">{res.stipend}</span></div>}
+                                      {res.deadline && <div className="text-slate-400 font-extrabold text-amber-400">⏳ Deadline: <span className="text-amber-350 font-extrabold ml-1">{res.deadline}</span></div>}
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <a
+                                    href={res.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="glass-button px-2.5 py-1.5 text-[10px] text-slate-200 font-bold rounded-lg transition-all text-center flex-1 flex items-center justify-center gap-1.5"
+                                  >
+                                    <Globe size={12} /> View Website
+                                  </a>
+                                  <button
+                                    onClick={() => handleApply(res.title, res.url)}
+                                    className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-[10px] text-white font-extrabold rounded-lg transition-all text-center flex-1 flex items-center justify-center gap-1.5"
+                                  >
+                                    <Zap size={12} /> {res.url.includes("job") || res.url.includes("career") || res.url.includes("intern") || res.title.toLowerCase().includes("intern") ? "Apply via MOSAIC" : "Automate via MOSAIC"}
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                   <span className="text-[9px] text-slate-400/85 block mt-2 text-right">
                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>

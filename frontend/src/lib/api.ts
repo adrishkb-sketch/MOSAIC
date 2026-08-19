@@ -4,6 +4,12 @@ export interface SearchResultItem {
   title: string;
   url: string;
   description: string;
+  price?: string;
+  stipend?: string;
+  deadline?: string;
+  type?: "shopping" | "job" | "event" | "general";
+  company?: string;
+  location?: string;
 }
 
 export interface ChatMessage {
