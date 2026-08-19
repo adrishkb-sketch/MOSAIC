@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { api, ActivityItem } from "@/lib/api";
 import { ClipboardList, Search, FileJson } from "lucide-react";
+import { motion } from "framer-motion";
 
 interface ActivityLogProps {
   email: string;
@@ -90,8 +91,14 @@ export default function ActivityLog({ email }: ActivityLogProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
-              {activities.map((log) => (
-                <tr key={log.id} className="hover:bg-white/5 transition-all text-xs text-slate-200">
+              {activities.map((log, index) => (
+                <motion.tr 
+                  key={log.id} 
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
+                  className="hover:bg-white/5 transition-all text-xs text-slate-200"
+                >
                   <td className="px-6 py-4 font-mono font-bold text-slate-400">{log.task_id.substring(0, 12)}...</td>
                   <td className="px-6 py-4 font-medium max-w-xs truncate">{log.request}</td>
                   <td className="px-6 py-4">{getStatusBadge(log.status)}</td>
@@ -106,7 +113,7 @@ export default function ActivityLog({ email }: ActivityLogProps) {
                       <Search size={12} /> Inspect
                     </button>
                   </td>
-                </tr>
+                </motion.tr>
               ))}
             </tbody>
           </table>

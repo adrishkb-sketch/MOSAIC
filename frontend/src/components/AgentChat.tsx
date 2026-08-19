@@ -3,12 +3,14 @@
 import React, { useState, useEffect, useRef } from "react";
 import { api, ChatMessage, ActionPlanItem, SearchResultItem } from "@/lib/api";
 import { Brain, Globe, HelpCircle, Settings, Hourglass, RefreshCw, CheckCircle, XCircle, Sparkles, StopCircle, Shield, Zap, Send } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface AgentChatProps {
   email: string;
+  setGlobalStatus?: (status: "idle" | "browsing" | "error") => void;
 }
 
-export default function AgentChat({ email }: AgentChatProps) {
+export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
   const [showLiveViewport, setShowLiveViewport] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -39,6 +41,18 @@ export default function AgentChat({ email }: AgentChatProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages, status]);
+
+  useEffect(() => {
+    if (setGlobalStatus) {
+      if (["failed", "waiting_approval"].includes(status)) {
+        setGlobalStatus("error");
+      } else if (["browsing", "learning", "thinking", "preparing"].includes(status)) {
+        setGlobalStatus("browsing");
+      } else {
+        setGlobalStatus("idle");
+      }
+    }
+  }, [status, setGlobalStatus]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -295,7 +309,13 @@ export default function AgentChat({ email }: AgentChatProps) {
             const isAgent = msg.sender === "agent";
             const isSystem = msg.sender === "system";
             return (
-              <div key={index} className={`flex ${isAgent ? "justify-start" : isSystem ? "justify-center" : "justify-end"}`}>
+              <motion.div 
+                key={index} 
+                initial={{ opacity: 0, y: 15, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.3, type: "spring", stiffness: 200, damping: 20 }}
+                className={`flex ${isAgent ? "justify-start" : isSystem ? "justify-center" : "justify-end"}`}
+              >
                 <div
                   className={`max-w-[85%] rounded-2xl p-4 text-xs leading-relaxed shadow-sm ${
                     isAgent
@@ -341,7 +361,7 @@ export default function AgentChat({ email }: AgentChatProps) {
                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
           <div ref={messagesEndRef} />

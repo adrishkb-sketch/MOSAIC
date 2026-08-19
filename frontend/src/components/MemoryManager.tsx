@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { api, MemoryItem, MemoryWhyResponse } from "@/lib/api";
 import { Brain, Save, Edit2, Trash2, Search, Shield, X, RotateCcw } from "lucide-react";
+import { motion } from "framer-motion";
 
 interface MemoryManagerProps {
   email: string;
@@ -137,10 +138,14 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {memories.map((item) => (
-            <div
+          {memories.map((item, index) => (
+            <motion.div
               key={item.id}
-              className="glass-panel flex flex-col justify-between hover:border-white/20 transition-all rounded-3xl p-6"
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: index * 0.05 }}
+              whileHover={{ scale: 1.02 }}
+              className="glass-panel hover:border-indigo-500/30 transition-all rounded-3xl p-6 relative flex flex-col justify-between group"
             >
               <div>
                 <div className="flex items-start justify-between gap-4 mb-4">
@@ -216,7 +221,7 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
                   </>
                 )}
               </div>
-            </div>
+            </motion.div>
           ))}
         </div>
       )}

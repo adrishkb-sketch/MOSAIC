@@ -2,6 +2,8 @@
 
 import React, { useState } from "react";
 import { Sparkles, Shield, AlertTriangle, Rocket, Loader2 } from "lucide-react";
+import { motion } from "framer-motion";
+import MosaicCore3D from "./MosaicCore3D";
 
 interface LoginSplashProps {
   onLogin: (email: string) => void;
@@ -34,20 +36,30 @@ export default function LoginSplash({ onLogin }: LoginSplashProps) {
   };
 
   return (
-    <div className="flex-1 flex items-center justify-center p-6 bg-transparent relative overflow-hidden h-screen">
+    <div className="flex-1 flex flex-col lg:flex-row items-center justify-center p-6 bg-transparent relative overflow-hidden h-screen gap-12">
       {/* Background radial glow */}
       <div className="absolute top-1/4 left-1/4 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl animate-pulse" />
       <div className="absolute bottom-1/4 right-1/4 translate-x-1/2 translate-y-1/2 w-96 h-96 bg-violet-500/20 rounded-full blur-3xl animate-pulse" />
 
-      <div className="w-full max-w-md p-8 rounded-3xl glass-panel relative z-10 transition-all hover:border-white/20 hover:shadow-indigo-500/10">
+      {/* 3D Core Element */}
+      <motion.div 
+        className="w-full lg:w-1/2 h-[40vh] lg:h-[80vh] relative z-10 flex items-center justify-center"
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 1 }}
+      >
+        <MosaicCore3D />
+      </motion.div>
+
+      <motion.div 
+        className="w-full max-w-md p-8 rounded-3xl glass-panel relative z-10 transition-all hover:border-white/20 hover:shadow-indigo-500/10"
+        initial={{ opacity: 0, x: 50 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.6, delay: 0.3 }}
+      >
         <div className="flex flex-col items-center mb-8">
-          {/* Logo */}
-          <div className="w-14 h-14 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center shadow-lg shadow-indigo-500/20 mb-4 animate-pulse">
-            <span className="text-2xl font-black text-white tracking-widest">M</span>
-          </div>
-          
           <h1 className="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-200 to-violet-200 flex items-center gap-2">
-            <Sparkles size={28} className="text-indigo-400" /> Welcome to MOSAIC
+            <Sparkles size={28} className="text-indigo-400" /> MOSAIC OS
           </h1>
           <p className="text-sm text-indigo-200/70 mt-2 text-center font-medium flex items-center justify-center gap-1.5">
             MOSAIC learns the web, not your identity. <Shield size={14} />
@@ -86,7 +98,7 @@ export default function LoginSplash({ onLogin }: LoginSplashProps) {
                 <span>Initializing agent... <Rocket size={16} className="inline ml-1" /></span>
               </>
             ) : (
-              <span className="flex items-center gap-2">Get Started <Rocket size={16} /></span>
+              <span className="flex items-center gap-2">Initialize Core <Rocket size={16} /></span>
             )}
           </button>
         </form>
@@ -96,7 +108,7 @@ export default function LoginSplash({ onLogin }: LoginSplashProps) {
             Enter any email to create an isolated local session.
           </p>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
