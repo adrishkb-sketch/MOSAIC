@@ -108,37 +108,91 @@ class BrowserNextAction(BaseModel):
 
 class GeminiService:
     def __init__(self):
-        self._client = None
+        self.api_keys = []
+        self.current_key_idx = 0
+        self._clients = {}
+        self.reload_keys()
+
+    def reload_keys(self):
+        raw_key = settings.GEMINI_API_KEY
+        if raw_key:
+            self.api_keys = [k.strip() for k in raw_key.split(",") if k.strip()]
+        else:
+            self.api_keys = []
+
+    def rotate_key(self) -> bool:
+        """Rotates to the next key. Returns True if successfully rotated to a new key."""
+        if not self.api_keys:
+            return False
+        self.current_key_idx = (self.current_key_idx + 1) % len(self.api_keys)
+        print(f"Rotating to Gemini API Key at index {self.current_key_idx}")
+        return True
 
     @property
     def client(self) -> genai.Client:
-        if not settings.GEMINI_API_KEY:
+        self.reload_keys()
+        if not self.api_keys:
             raise ValueError(
                 "GEMINI_API_KEY is not configured. Please supply it in backend/.env to use Gemini features."
             )
-        if self._client is None:
-            # We initialize client with settings.GEMINI_API_KEY
-            self._client = genai.Client(api_key=settings.GEMINI_API_KEY)
-        return self._client
+        key = self.api_keys[self.current_key_idx]
+        if key not in self._clients:
+            self._clients[key] = genai.Client(api_key=key)
+        return self._clients[key]
 
     def is_configured(self) -> bool:
-        return bool(settings.GEMINI_API_KEY)
+        self.reload_keys()
+        return len(self.api_keys) > 0
+
+    def generate_content(self, model: str, contents: Any, config: Any = None) -> Any:
+        self.reload_keys()
+        if not self.api_keys:
+            raise ValueError(
+                "GEMINI_API_KEY is not configured. Please supply it in backend/.env to use Gemini features."
+            )
+        attempts = 0
+        max_attempts = len(self.api_keys)
+        last_error = None
+        while attempts < max_attempts:
+            try:
+                cl = self.client
+                return cl.models.generate_content(
+                    model=model,
+                    contents=contents,
+                    config=config
+                )
+            except Exception as e:
+                print(f"Gemini generate_content failed with key index {self.current_key_idx}: {e}")
+                last_error = e
+                self.rotate_key()
+                attempts += 1
+        raise RuntimeError(f"All Gemini API Keys failed. Last error: {str(last_error)}")
 
     def _call_model(self, contents: str, response_schema: Any, model: str = "gemini-2.5-flash") -> Any:
-        try:
-            response = self.client.models.generate_content(
-                model=model,
-                contents=contents,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=response_schema,
-                    temperature=0.1
+        self.reload_keys()
+        if not self.api_keys:
+            raise RuntimeError("No Gemini API keys configured.")
+        attempts = 0
+        max_attempts = len(self.api_keys)
+        last_error = None
+        while attempts < max_attempts:
+            try:
+                response = self.client.models.generate_content(
+                    model=model,
+                    contents=contents,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        response_schema=response_schema,
+                        temperature=0.1
+                    )
                 )
-            )
-            return response.parsed
-        except Exception as e:
-            # Re-raise with a clear message
-            raise RuntimeError(f"Gemini API Call Failed: {str(e)}")
+                return response.parsed
+            except Exception as e:
+                print(f"Gemini model call failed with key index {self.current_key_idx}: {e}")
+                last_error = e
+                self.rotate_key()
+                attempts += 1
+        raise RuntimeError(f"All Gemini API Keys failed. Last error: {str(last_error)}")
 
     def classify_intent(self, user_request: str) -> TaskIntent:
         prompt = f"""

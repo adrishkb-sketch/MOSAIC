@@ -169,8 +169,39 @@ class AgentOrchestrator:
                     "browser_active": False
                 }
 
-        # 5. Launch Browser Session if needed
-        # We need a browser if we are researching or doing web automation
+        # Check for direct apply click
+        if message.startswith("apply_for:"):
+            target_url = message.split("apply_for:")[1].strip()
+            session["request"] = f"Apply for internship/job at {target_url}"
+            session["status"] = "browsing"
+            
+            if not session.get("session_id"):
+                session["session_id"] = webcmd_client.create_session()
+                
+            session_id = session["session_id"]
+            session["current_url"] = target_url
+            
+            # Save activity state
+            activity = db.query(UserActivity).filter(UserActivity.task_id == task_id).first()
+            if activity:
+                activity.status = "browsing"
+                db.commit()
+                
+            # Navigate to target URL immediately
+            webcmd_client.run_script(session_id, f'await page.goto("{target_url}");')
+            webcmd_client.run_script(session_id, 'await page.waitForTimeout(2000);')
+            
+            return self._run_browser_orchestration(db, task_id, f"Fill out application form on {target_url}", profile_data)
+            
+        # Check if the query is a search query
+        is_search_query = any(w in session["request"].lower() for w in ["find", "search", "lookup", "gather", "collect", "internship"]) and not "apply" in message.lower()
+        
+        if is_search_query:
+            if not session.get("session_id"):
+                session["session_id"] = webcmd_client.create_session()
+            return self._run_search_orchestration(db, task_id, session["request"], profile_data)
+
+        # 5. Launch Browser Session if needed (Fallback general browsing)
         need_browser = any(w in session["request"].lower() for w in ["find", "search", "table", "internship", "buy", "register", "apply", "hotel", "trip"])
         
         if need_browser and not session["session_id"]:
@@ -194,6 +225,155 @@ class AgentOrchestrator:
             "browser_active": False
         }
 
+    def _run_search_orchestration(
+        self,
+        db: Session,
+        task_id: str,
+        query: str,
+        profile_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        session = active_sessions[task_id]
+        session_id = session["session_id"]
+        
+        # Navigate to Google Search or relevant portals
+        search_query = query
+        if "internship" in query.lower() and "skills" in profile_data:
+            # enhance search query using profile skills if searching for internships
+            skills = profile_data.get("skills", "")
+            address = profile_data.get("address", "")
+            search_query = f"{query} {skills} {address}".strip()
+            
+        search_url = f"https://www.google.com/search?q={search_query.replace(' ', '+')}"
+        session["current_url"] = search_url
+        
+        # Go to Google
+        webcmd_client.run_script(session_id, f'await page.goto("{search_url}");')
+        webcmd_client.run_script(session_id, 'await page.waitForTimeout(2000);')
+        
+        # Scrape links from the search page
+        scrape_script = """
+        return await page.evaluate(() => {
+            const results = [];
+            const elements = document.querySelectorAll('a');
+            const seenUrls = new Set();
+            for (const el of elements) {
+                const href = el.href;
+                const text = el.innerText.trim();
+                if (href && text && href.startsWith('http') && !href.includes('google.com') && !href.includes('youtube.com') && !href.includes('wikipedia.org') && !href.includes('support.google')) {
+                    if (!seenUrls.has(href)) {
+                        seenUrls.add(href);
+                        results.push({ text, href });
+                    }
+                }
+            }
+            return results;
+        });
+        """
+        raw_results = []
+        res = webcmd_client.run_script(session_id, scrape_script)
+        if res.get("ok"):
+            raw_results = res["result"] or []
+            
+        # Parse and format results
+        search_items = []
+        summary = ""
+        
+        if gemini_service.is_configured():
+            try:
+                # Use Gemini to extract, filter, and optionally add directly generated results
+                prompt = f"""
+                User Query: "{query}"
+                Raw links extracted from search page:
+                {json.dumps(raw_results[:100])}
+                
+                You are a smart job portal AI. First, filter and extract a list of at most 8 real, highly relevant search results/job openings matching the user's query from the raw links.
+                Additionally, if there are fewer than 5 high-quality results from the search page, you can directly generate 2-3 highly relevant internship openings with REAL apply links from well-known career sites (e.g. Google Careers, GitHub Careers, Amazon, etc.) based on your knowledge.
+                For each result, extract the title/role, company/source name, direct URL, and location.
+                Provide a concise, friendly summary of what you found.
+                """
+                
+                from pydantic import BaseModel, Field
+                class SearchResultItem(BaseModel):
+                    title: str
+                    company: Optional[str] = None
+                    url: str
+                    location: Optional[str] = None
+                    
+                class SearchResultsResponse(BaseModel):
+                    items: List[SearchResultItem]
+                    summary: str
+
+                parsed_res = gemini_service._call_model(prompt, SearchResultsResponse)
+                
+                for item in parsed_res.items:
+                    search_items.append({
+                        "title": item.title,
+                        "company": item.company or "Web Link",
+                        "url": item.url,
+                        "location": item.location or ""
+                    })
+                summary = parsed_res.summary
+            except Exception as e:
+                print(f"Gemini search parsing failed, falling back to local: {e}")
+                
+        # If Gemini is not configured or failed, do local filtering
+        if not search_items:
+            # Let's filter links containing useful keywords
+            filtered_links = []
+            keywords = ["job", "career", "intern", "recruit", "detail", "apply", "post", "work", "position"]
+            for r in raw_results:
+                url = r["href"].lower()
+                text = r["text"].lower()
+                # prioritize links containing keywords
+                if any(k in url or k in text for k in keywords):
+                    filtered_links.append(r)
+            
+            # fallback to any links if filtered list is too small
+            if len(filtered_links) < 3:
+                filtered_links = raw_results[:8]
+            else:
+                filtered_links = filtered_links[:8]
+                
+            for idx, r in enumerate(filtered_links):
+                # Clean title
+                title = r["text"].split("\n")[0].strip()
+                if len(title) > 80:
+                    title = title[:80] + "..."
+                # Estimate company from URL host
+                from urllib.parse import urlparse
+                parsed_uri = urlparse(r["href"])
+                domain = parsed_uri.netloc.replace("www.", "")
+                company = domain.split(".")[0].capitalize()
+                
+                search_items.append({
+                    "title": title or f"Search Result #{idx+1}",
+                    "company": company,
+                    "url": r["href"],
+                    "location": profile_data.get("address", "")
+                })
+            summary = f"I found {len(search_items)} matches for '{query}' in the web search."
+
+        # Keep browser session open for subsequent apply automation, but set browser_active to False so viewport is hidden!
+        # Save activity log
+        activity = db.query(UserActivity).filter(UserActivity.task_id == task_id).first()
+        if activity:
+            activity.status = "completed"
+            activity.result = summary
+            db.commit()
+            
+        screenshot = webcmd_client.get_screenshot(session_id)
+        return {
+            "task_id": task_id,
+            "status": "idle",
+            "response": summary,
+            "clarification_needed": False,
+            "action_plan_required": False,
+            "browser_active": False,
+            "browser_url": search_url,
+            "screenshot": screenshot,
+            "results": search_items
+        }
+
     def _format_table(self, headers: List[str], rows: List[Any]) -> str:
         tbl = "| " + " | ".join(headers) + " |\n"
         tbl += "| " + " | ".join(["---"] * len(headers)) + " |\n"
@@ -214,7 +394,117 @@ class AgentOrchestrator:
         session_id = session["session_id"]
         activity = db.query(UserActivity).filter(UserActivity.task_id == task_id).first()
 
-        if "internship" in query:
+        # Handle form-filling fallback for application or direct URL action
+        if "apply" in query or "job" in query or "http" in query:
+            # Fallback auto-fill on the actual webpage using Playwright
+            fill_success = False
+            current_url = session.get("current_url") or "https://google.com"
+            try:
+                # Find input elements
+                find_fields_script = """
+                return await page.evaluate(() => {
+                    const inputs = Array.from(document.querySelectorAll('input, textarea'));
+                    const fields = [];
+                    for (const input of inputs) {
+                        const id = input.id || "";
+                        const name = input.name || "";
+                        const placeholder = input.placeholder || "";
+                        if (id || name || placeholder) {
+                            fields.push({ id, name, placeholder });
+                        }
+                    }
+                    return fields;
+                });
+                """
+                res = webcmd_client.run_script(session_id, find_fields_script)
+                if res.get("ok"):
+                    fields = res["result"]
+                    # Try to fill name, email, skills if we find them
+                    for f in fields:
+                        fid = f.get("id")
+                        fname = f.get("name")
+                        fplaceholder = f.get("placeholder", "").lower()
+                        
+                        # Build standard selectors
+                        selector = None
+                        if fid:
+                            selector = f"#{fid}"
+                        elif fname:
+                            selector = f"[name='{fname}']"
+                            
+                        if selector:
+                            name_val = profile_data.get("name", "Adrish")
+                            email_val = profile_data.get("email", "user@example.com")
+                            skills_val = profile_data.get("skills", "Python")
+                            
+                            # match name
+                            if "name" in fid.lower() or "name" in fname.lower() or "name" in fplaceholder:
+                                webcmd_client.run_script(session_id, f'await page.fill("{selector}", "{name_val}");')
+                                fill_success = True
+                            # match email
+                            elif "email" in fid.lower() or "email" in fname.lower() or "email" in fplaceholder:
+                                webcmd_client.run_script(session_id, f'await page.fill("{selector}", "{email_val}");')
+                                fill_success = True
+                            # match skills
+                            elif "skills" in fid.lower() or "skills" in fname.lower() or "skills" in fplaceholder:
+                                webcmd_client.run_script(session_id, f'await page.fill("{selector}", "{skills_val}");')
+                                fill_success = True
+            except Exception as e:
+                print(f"Fallback auto-fill error: {e}")
+
+            url_res = webcmd_client.run_script(session_id, "return page.url();")
+            current_url = url_res.get("result") if url_res.get("ok") else current_url
+            session["current_url"] = current_url
+            screenshot = webcmd_client.get_screenshot(session_id) or screenshot
+
+            plan = ActionPlan(
+                task_id=task_id,
+                user_id=session["email"],
+                goal=f"Apply for job at {current_url}",
+                website=current_url.split("/")[2] if "//" in current_url else "website",
+                actions=json.dumps([
+                    {"action_type": "fill", "description": "Fill name field", "selector": "#name", "value": profile_data.get("name", "Adrish")},
+                    {"action_type": "fill", "description": "Fill email field", "selector": "#email", "value": profile_data.get("email", "user@example.com")},
+                    {"action_type": "fill", "description": "Fill skills/profile field", "selector": "#skills", "value": profile_data.get("skills", "Python")}
+                ]),
+                information_to_be_sent=json.dumps({
+                    "name": profile_data.get("name", "Adrish"),
+                    "email": profile_data.get("email", "user@example.com"),
+                    "skills": profile_data.get("skills", "Python")
+                }),
+                risk_level="CONSEQUENTIAL",
+                approval_required=True,
+                approval_status="pending",
+                final_action="click submit button"
+            )
+            db.add(plan)
+            db.commit()
+
+            session["status"] = "waiting_approval"
+            if activity:
+                activity.status = "waiting_approval"
+                activity.steps = json.dumps(session["steps"])
+                db.commit()
+
+            return {
+                "task_id": task_id,
+                "status": "waiting_approval",
+                "response": "I have navigated to the application page and mapped your profile details into the form. Please review the actual form on the right and check the details below before clicking Approve.",
+                "clarification_needed": False,
+                "action_plan_required": True,
+                "action_plan": {
+                    "goal": plan.goal,
+                    "website": plan.website,
+                    "actions": json.loads(plan.actions),
+                    "information_to_be_sent": json.loads(plan.information_to_be_sent),
+                    "risk_level": plan.risk_level
+                },
+                "browser_active": True,
+                "browser_url": current_url,
+                "screenshot": screenshot
+            }
+
+        elif "internship" in query:
             search_query = f"software engineering internships in {profile_data.get('address', 'Kolkata')} for skills {profile_data.get('skills', 'Python')}"
             session["current_url"] = f"https://www.google.com/search?q={search_query.replace(' ', '+')}"
             webcmd_client.run_script(session_id, f'await page.goto("{session["current_url"]}");')
@@ -442,7 +732,7 @@ class AgentOrchestrator:
                     "response": next_action.question or "Please enter the authentication code / OTP shown on the page:",
                     "clarification_needed": True,
                     "action_plan_required": False,
-                    "browser_active": True,
+                    "browser_active": False,
                     "browser_url": url,
                     "screenshot": screenshot
                 }
@@ -548,7 +838,7 @@ class AgentOrchestrator:
             "response": "Continuing exploration in page view...",
             "clarification_needed": False,
             "action_plan_required": False,
-            "browser_active": True,
+            "browser_active": False,
             "browser_url": session["current_url"],
             "screenshot": webcmd_client.get_screenshot(session_id)
         }

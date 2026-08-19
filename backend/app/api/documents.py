@@ -34,7 +34,7 @@ async def upload_document(
             try:
                 # We can call gemini to summarize the profile details
                 prompt = f"Parse this resume and extract basic info: name, email, skills, experience as JSON. Resume text:\n{extracted_text}"
-                response = gemini_service.client.models.generate_content(
+                response = gemini_service.generate_content(
                     model="gemini-2.5-flash",
                     contents=prompt,
                     config={"response_mime_type": "application/json"}

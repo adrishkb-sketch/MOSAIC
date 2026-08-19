@@ -5,6 +5,30 @@ import base64
 from typing import Dict, Any, Optional
 
 class WebcmdClient:
+    def _get_env(self) -> Dict[str, str]:
+        env = os.environ.copy()
+        # Prepend standard Homebrew/Mac paths to PATH to ensure Homebrew Node is used
+        paths = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
+        existing_path = env.get("PATH", "")
+        if existing_path:
+            env["PATH"] = os.pathsep.join(paths) + os.pathsep + existing_path
+        else:
+            env["PATH"] = os.pathsep.join(paths)
+            
+        # Add Node module resolution paths
+        global_node_paths = [
+            "/opt/homebrew/lib/node_modules",
+            "/usr/local/lib/node_modules",
+            os.path.expanduser("~/.npm-global/lib/node_modules")
+        ]
+        existing_node_path = env.get("NODE_PATH", "")
+        if existing_node_path:
+            env["NODE_PATH"] = existing_node_path + os.pathsep + os.pathsep.join(global_node_paths)
+        else:
+            env["NODE_PATH"] = os.pathsep.join(global_node_paths)
+            
+        return env
+
     def create_session(self) -> str:
         """
         Creates a new Webcmd session and returns the opaque session ID.
@@ -14,7 +38,8 @@ class WebcmdClient:
                 ["webcmd", "session", "create", "-f", "json"],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
+                env=self._get_env()
             )
             data = json.loads(result.stdout)
             return data["id"]
@@ -30,7 +55,8 @@ class WebcmdClient:
                 ["webcmd", "--session", session_id, "browser", "close"],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
+                env=self._get_env()
             )
         except Exception as e:
             # We don't want to crash if closing fails (session might be already closed)
@@ -47,7 +73,8 @@ class WebcmdClient:
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True
+                text=True,
+                env=self._get_env()
             )
             stdout, stderr = process.communicate(input=script)
             
@@ -122,7 +149,8 @@ class WebcmdClient:
                 ["webcmd", "--session", session_id, "browser", "snapshot", "--snapshot-mode", "act"],
                 capture_output=True,
                 text=True,
-                check=True
+                check=True,
+                env=self._get_env()
             )
             # Remove any terminal colors or headers
             return result.stdout.strip()

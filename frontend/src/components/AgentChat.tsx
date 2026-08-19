@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { api, ChatMessage, ActionPlanItem } from "@/lib/api";
+import { api, ChatMessage, ActionPlanItem, SearchResultItem } from "@/lib/api";
 
 interface AgentChatProps {
   email: string;
 }
 
 export default function AgentChat({ email }: AgentChatProps) {
+  const [showLiveViewport, setShowLiveViewport] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       sender: "agent",
@@ -68,7 +69,8 @@ export default function AgentChat({ email }: AgentChatProps) {
         {
           sender: "agent",
           text: response.response,
-          timestamp: new Date()
+          timestamp: new Date(),
+          results: response.results
         }
       ]);
 
@@ -92,6 +94,64 @@ export default function AgentChat({ email }: AgentChatProps) {
         {
           sender: "system",
           text: `An error occurred: ${e.message || "Unknown error"}`,
+          timestamp: new Date()
+        }
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleApply = async (title: string, url: string) => {
+    setInput("");
+    setIsLoading(true);
+    setStatus("browsing");
+
+    const userMessage: ChatMessage = {
+      sender: "user",
+      text: `Apply for ${title}`,
+      timestamp: new Date()
+    };
+    setMessages((prev) => [...prev, userMessage]);
+
+    try {
+      const response = await api.chat(email, `apply_for: ${url}`, taskId || undefined);
+      
+      if (response.task_id) setTaskId(response.task_id);
+      setBrowserActive(response.browser_active);
+      if (response.browser_url) setBrowserUrl(response.browser_url);
+      if (response.screenshot) setScreenshot(response.screenshot);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: "agent",
+          text: response.response,
+          timestamp: new Date(),
+          results: response.results
+        }
+      ]);
+
+      if (response.action_plan_required && response.action_plan) {
+        setActionPlan(response.action_plan);
+        setStatus("waiting_approval");
+      } else if (response.clarification_needed) {
+        setStatus("asking");
+      } else if (response.browser_active) {
+        setStatus("browsing");
+      } else if (response.status === "completed") {
+        setStatus("completed");
+      } else {
+        setStatus("idle");
+      }
+    } catch (e: any) {
+      console.error(e);
+      setStatus("failed");
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: "system",
+          text: `Apply automation failed: ${e.message || "Unknown error"}`,
           timestamp: new Date()
         }
       ]);
@@ -190,10 +250,12 @@ export default function AgentChat({ email }: AgentChatProps) {
     }
   };
 
+  const isViewportVisible = browserActive || (showLiveViewport && (status !== "idle" && status !== "completed" && status !== "failed"));
+
   return (
     <div className="flex-1 flex overflow-hidden h-screen bg-slate-950">
       {/* Left Pane: Conversational Log */}
-      <div className={`flex flex-col border-r border-slate-800/80 transition-all duration-300 ${browserActive ? "w-1/2" : "w-full"}`}>
+      <div className={`flex flex-col border-r border-slate-800/80 transition-all duration-300 ${isViewportVisible ? "w-1/2" : "w-full"}`}>
         {/* Header Status */}
         <div className="p-4 border-b border-slate-800/80 bg-slate-900/40 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -203,16 +265,27 @@ export default function AgentChat({ email }: AgentChatProps) {
               {taskId && <p className="text-[9px] text-slate-500 font-mono mt-0.5">Session: {taskId.substring(0, 15)}...</p>}
             </div>
           </div>
-          {status !== "idle" && (
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={showLiveViewport}
+                onChange={(e) => setShowLiveViewport(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="relative w-7 h-4 bg-slate-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-slate-400 peer-checked:after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-indigo-600"></div>
+              <span className="text-[10px] font-bold text-slate-400 peer-checked:text-slate-200">Show live browser automation</span>
+            </label>
+            
+            {status !== "idle" && (
               <button
                 onClick={handleCancelTask}
-                className="px-2.5 py-1 text-[10px] font-bold text-rose-400 hover:text-rose-350 bg-rose-950/20 border border-rose-900/30 rounded-lg transition-all"
+                className="px-2.5 py-1 text-[10px] font-bold text-rose-400 hover:text-rose-350 bg-rose-950/20 border border-rose-900/30 rounded-lg transition-all flex-shrink-0"
               >
                 🛑 Stop Agent
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Messages list */}
@@ -232,6 +305,37 @@ export default function AgentChat({ email }: AgentChatProps) {
                   }`}
                 >
                   <p className="whitespace-pre-line">{msg.text}</p>
+                  {isAgent && msg.results && msg.results.length > 0 && (
+                    <div className="mt-4 space-y-2 border-t border-slate-800 pt-3">
+                      <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Search Results:</p>
+                      <div className="grid grid-cols-1 gap-2.5">
+                        {msg.results.map((res, rIdx) => (
+                          <div key={rIdx} className="bg-slate-950 border border-slate-850 rounded-xl p-3 flex flex-col justify-between gap-3 hover:border-slate-800 transition-all">
+                            <div>
+                              <h4 className="font-bold text-white text-[11px] leading-tight line-clamp-1">{res.title}</h4>
+                              <p className="text-slate-400 text-[10px] mt-1 line-clamp-2">{res.description}</p>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <a
+                                href={res.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2.5 py-1.5 bg-slate-850 hover:bg-slate-800 border border-slate-800 text-[10px] text-slate-300 font-bold rounded-lg transition-all text-center flex-1"
+                              >
+                                🌐 View Website
+                              </a>
+                              <button
+                                onClick={() => handleApply(res.title, res.url)}
+                                className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-[10px] text-white font-extrabold rounded-lg transition-all text-center flex-1 flex items-center justify-center gap-1"
+                              >
+                                ⚡ Apply via MOSAIC
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <span className="text-[9px] text-slate-400/85 block mt-2 text-right">
                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
@@ -308,7 +412,7 @@ export default function AgentChat({ email }: AgentChatProps) {
       </div>
 
       {/* Right Pane: Browser Viewport Split-Screen */}
-      {browserActive && (
+      {isViewportVisible && (
         <div className="w-1/2 bg-slate-900 flex flex-col h-full border-l border-slate-850">
           <div className="p-3 bg-slate-950 border-b border-slate-850 flex items-center justify-between text-xs text-slate-400 font-medium">
             <div className="flex items-center gap-2 truncate pr-4">

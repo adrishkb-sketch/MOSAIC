@@ -1,9 +1,16 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
 
+export interface SearchResultItem {
+  title: string;
+  url: string;
+  description: string;
+}
+
 export interface ChatMessage {
   sender: "user" | "agent" | "system";
   text: string;
   timestamp: Date;
+  results?: SearchResultItem[];
 }
 
 export interface MemoryItem {
@@ -200,6 +207,7 @@ export const api = {
       browser_active: boolean;
       browser_url?: string;
       screenshot?: string;
+      results?: SearchResultItem[];
     }>("/agent/chat", {
       method: "POST",
       body: JSON.stringify({ email, message, task_id: taskId }),

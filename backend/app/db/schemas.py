@@ -136,3 +136,4 @@ class ChatResponse(BaseModel):
     browser_active: bool = False
     browser_url: Optional[str] = None
     screenshot: Optional[str] = None
+    results: Optional[List[Dict[str, Any]]] = None

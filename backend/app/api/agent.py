@@ -27,7 +27,8 @@ def chat_endpoint(
             action_plan=res.get("action_plan"),
             browser_active=res["browser_active"],
             browser_url=res.get("browser_url"),
-            screenshot=res.get("screenshot")
+            screenshot=res.get("screenshot"),
+            results=res.get("results") or []
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

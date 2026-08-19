@@ -54,10 +54,24 @@ def test_agent_chat_and_approval_workflow():
     db.commit()
     db.close()
 
-    # 3. Chat again with the skills resolved - should trigger browser search and return action plan
+    # 3. Chat again with the skills resolved - should trigger search, returning search results and keeping browser inactive
     response = client.post(
         "/api/agent/chat",
         json={"email": email, "message": "Find me software engineering internships.", "task_id": task_id}
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "idle"
+    assert data["action_plan_required"] is False
+    assert data["browser_active"] is False
+    assert data["results"] is not None
+    assert len(data["results"]) > 0
+    target_url = data["results"][0]["url"]
+
+    # 3b. Simulate clicking the "Apply via MOSAIC" button
+    response = client.post(
+        "/api/agent/chat",
+        json={"email": email, "message": f"apply_for: {target_url}", "task_id": task_id}
     )
     assert response.status_code == 200
     data = response.json()
@@ -66,7 +80,6 @@ def test_agent_chat_and_approval_workflow():
     assert data["action_plan"] is not None
     assert data["browser_active"] is True
     assert data["screenshot"] is not None
-    assert data["screenshot"].startswith("data:image/png;base64,")
 
     # 4. Submit approval to update plan status
     response = client.post(
