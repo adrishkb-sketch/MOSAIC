@@ -194,7 +194,7 @@ class AgentOrchestrator:
             return self._run_browser_orchestration(db, task_id, f"Fill out application form on {target_url}", profile_data)
             
         # Check if the query is a search query
-        is_search_query = any(w in session["request"].lower() for w in ["find", "search", "lookup", "gather", "collect", "internship"]) and not "apply" in message.lower()
+        is_search_query = any(w in session["request"].lower() for w in ["find", "search", "lookup", "gather", "collect", "internship", "buy", "want", "get", "shop", "need", "refrigerator", "fridge", "purchase", "price", "laptop", "table", "product"]) and not "apply" in message.lower()
         
         if is_search_query:
             if not session.get("session_id"):
@@ -620,14 +620,29 @@ class AgentOrchestrator:
             }
 
         else:
-            session["current_url"] = "https://google.com"
-            webcmd_client.run_script(session_id, 'await page.goto("https://google.com");')
+            search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+            session["current_url"] = search_url
+            
+            # Go to Google and handle cookie consent if present
+            navigation_script = f"""
+            await page.goto("{search_url}");
+            await page.waitForTimeout(2000);
+            await page.evaluate(() => {{
+                const btn = Array.from(document.querySelectorAll('button')).find(b => {{
+                    const txt = b.innerText.trim().toLowerCase();
+                    return txt.includes('accept all') || txt.includes('i agree') || txt.includes('agree') || txt.includes('consent');
+                }});
+                if (btn) btn.click();
+            }});
+            await page.waitForTimeout(2000);
+            """
+            webcmd_client.run_script(session_id, navigation_script)
             screenshot = webcmd_client.get_screenshot(session_id) or screenshot
 
             session["status"] = "completed"
             if activity:
                 activity.status = "completed"
-                activity.result = "Found general details for task."
+                activity.result = f"Found search details for: {query}"
                 activity.steps = json.dumps(session["steps"])
                 db.commit()
 
@@ -642,7 +657,7 @@ class AgentOrchestrator:
                 "clarification_needed": False,
                 "action_plan_required": False,
                 "browser_active": True,
-                "browser_url": "https://google.com",
+                "browser_url": search_url,
                 "screenshot": screenshot
             }
 

@@ -329,7 +329,7 @@ export default function AgentChat({ email }: AgentChatProps) {
                                 onClick={() => handleApply(res.title, res.url)}
                                 className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-[10px] text-white font-extrabold rounded-lg transition-all text-center flex-1 flex items-center justify-center gap-1.5"
                               >
-                                <Zap size={12} /> Apply via MOSAIC
+                                <Zap size={12} /> {res.url.includes("job") || res.url.includes("career") || res.url.includes("intern") || res.title.toLowerCase().includes("intern") ? "Apply via MOSAIC" : "Automate via MOSAIC"}
                               </button>
                             </div>
                           </div>
