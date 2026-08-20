@@ -52,7 +52,7 @@ export default function LoginSplash({ onLogin }: LoginSplashProps) {
       </motion.div>
 
       <motion.div 
-        className="w-full max-w-md p-8 rounded-3xl glass-panel relative z-10 transition-all hover:border-white/20 hover:shadow-indigo-500/10"
+        className="w-full max-w-md p-8 rounded-3xl glass-panel relative z-10 transition-all hover:border-slate-400/50 dark:border-white/20 hover:shadow-indigo-500/10"
         initial={{ opacity: 0, x: 50 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ duration: 0.6, delay: 0.3 }}
@@ -68,7 +68,7 @@ export default function LoginSplash({ onLogin }: LoginSplashProps) {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label htmlFor="email" className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
+            <label htmlFor="email" className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-2">
               Email Address
             </label>
             <input
@@ -78,7 +78,7 @@ export default function LoginSplash({ onLogin }: LoginSplashProps) {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               disabled={isLoading}
-              className="w-full px-4 py-3 rounded-xl bg-slate-900/40 border border-white/10 text-slate-100 placeholder-slate-400 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/50 transition-all text-sm backdrop-blur-sm"
+              className="w-full px-4 py-3 rounded-xl bg-slate-100 dark:bg-slate-900/40 border border-slate-300/50 dark:border-white/10 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/50 transition-all text-sm backdrop-blur-sm"
             />
             {error && (
               <p className="text-rose-500 text-xs mt-2 flex items-center gap-1 font-medium">
@@ -90,7 +90,7 @@ export default function LoginSplash({ onLogin }: LoginSplashProps) {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-white font-bold text-sm transition-all shadow-[0_0_20px_rgba(99,102,241,0.4)] focus:outline-none disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full py-3 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-slate-900 dark:text-white font-bold text-sm transition-all shadow-[0_0_20px_rgba(99,102,241,0.4)] focus:outline-none disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {isLoading ? (
               <>
@@ -103,7 +103,7 @@ export default function LoginSplash({ onLogin }: LoginSplashProps) {
           </button>
         </form>
 
-        <div className="mt-8 border-t border-slate-800/80 pt-6 text-center">
+        <div className="mt-8 border-t border-slate-300 dark:border-slate-800/80 pt-6 text-center">
           <p className="text-xs text-slate-500">
             Enter any email to create an isolated local session.
           </p>

@@ -3,6 +3,8 @@
 import React from "react";
 import { Globe, Brain, Activity, FolderGit2, User, FileText, LogOut } from "lucide-react";
 
+import { ThemeToggle } from "./ThemeToggle";
+
 type TabType = "agent" | "memory" | "activity" | "websites" | "profile" | "documents";
 
 interface SidebarProps {
@@ -23,17 +25,20 @@ export default function Sidebar({ activeTab, setActiveTab, email, onLogout }: Si
   ];
 
   return (
-    <aside className="w-64 bg-black/20 backdrop-blur-2xl border-r border-white/10 flex flex-col justify-between shrink-0 h-screen shadow-2xl relative z-20">
+    <aside className="w-64 bg-white/40 dark:bg-black/20 backdrop-blur-2xl border-r border-slate-300/50 dark:border-white/10 flex flex-col justify-between shrink-0 h-screen shadow-2xl relative z-20">
       <div>
         {/* Sidebar Header Logo */}
-        <div className="p-6 flex items-center gap-3 border-b border-white/10">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,0.5)]">
-            <span className="text-sm font-black text-white">M</span>
+        <div className="p-6 flex items-center justify-between border-b border-slate-300/50 dark:border-white/10">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-500 to-violet-500 flex items-center justify-center shadow-[0_0_15px_rgba(99,102,241,0.5)]">
+              <span className="text-sm font-black text-slate-900 dark:text-white">M</span>
+            </div>
+            <div>
+              <h2 className="font-extrabold text-slate-900 dark:text-slate-100 text-base leading-none">MOSAIC</h2>
+              <span className="text-[10px] text-slate-500 font-medium tracking-wider uppercase">Browser Agent</span>
+            </div>
           </div>
-          <div>
-            <h2 className="font-extrabold text-slate-100 text-base leading-none">MOSAIC</h2>
-            <span className="text-[10px] text-slate-500 font-medium tracking-wider uppercase">Browser Agent</span>
-          </div>
+          <ThemeToggle />
         </div>
 
         {/* Sidebar Nav */}
@@ -46,8 +51,8 @@ export default function Sidebar({ activeTab, setActiveTab, email, onLogout }: Si
                 onClick={() => setActiveTab(item.id)}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold transition-all border ${
                   isActive
-                    ? "bg-gradient-to-r from-indigo-500/80 to-violet-500/80 border-indigo-400/50 text-white shadow-[0_0_15px_rgba(99,102,241,0.3)]"
-                    : "border-transparent text-slate-300 hover:text-white hover:bg-white/5 hover:border-white/10"
+                    ? "bg-gradient-to-r from-indigo-500/80 to-violet-500/80 border-indigo-400/50 text-slate-900 dark:text-white shadow-[0_0_15px_rgba(99,102,241,0.3)]"
+                    : "border-transparent text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:text-white hover:bg-slate-200/50 dark:bg-white/5 hover:border-slate-300/50 dark:border-white/10"
                 }`}
               >
                 <span className="flex items-center justify-center w-5 h-5">{item.icon}</span>
@@ -59,13 +64,13 @@ export default function Sidebar({ activeTab, setActiveTab, email, onLogout }: Si
       </div>
 
       {/* User Information & Action Footer */}
-      <div className="p-4 border-t border-white/10 space-y-3 bg-black/10">
+      <div className="p-4 border-t border-slate-300/50 dark:border-white/10 space-y-3 bg-black/10">
         <div className="flex items-center gap-3 px-2">
-          <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-indigo-400 text-xs">
+          <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-800 border border-slate-400 dark:border-slate-700 flex items-center justify-center font-bold text-indigo-400 text-xs">
             {email.substring(0, 2).toUpperCase()}
           </div>
           <div className="overflow-hidden min-w-0">
-            <p className="text-xs font-bold text-slate-300 truncate leading-tight">{email}</p>
+            <p className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate leading-tight">{email}</p>
             <span className="text-[9px] text-indigo-400/80 font-bold uppercase tracking-wider">Active Session</span>
           </div>
         </div>

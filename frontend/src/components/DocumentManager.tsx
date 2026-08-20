@@ -137,7 +137,7 @@ ${resumeDraft.education.map((edu: any) => `
         <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-200 to-violet-200 flex items-center gap-2">
           <FileText size={28} className="text-indigo-400" /> Document Center
         </h1>
-        <p className="text-slate-300/80 text-sm mt-2">
+        <p className="text-slate-700 dark:text-slate-300/80 text-sm mt-2">
           Upload resumes and application certificates privately. Extracted details populate your profile variables.
         </p>
       </div>
@@ -146,11 +146,11 @@ ${resumeDraft.education.map((edu: any) => `
         {/* Upload Column */}
         <div className="lg:col-span-1 space-y-6">
           <div className="glass-panel rounded-3xl p-6 space-y-4">
-            <h3 className="text-slate-200 font-bold text-sm tracking-wide uppercase border-b border-white/10 pb-2 flex items-center gap-2">
+            <h3 className="text-slate-200 font-bold text-sm tracking-wide uppercase border-b border-slate-300/50 dark:border-white/10 pb-2 flex items-center gap-2">
               <Upload size={16} className="text-indigo-400" /> Upload Document
             </h3>
             
-            <div className="border border-dashed border-white/20 hover:border-indigo-500/50 transition-all rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer relative bg-black/20">
+            <div className="border border-dashed border-slate-400/50 dark:border-white/20 hover:border-indigo-500/50 transition-all rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer relative bg-white/40 dark:bg-black/20">
               <FileText size={32} className="mb-2 text-slate-500" />
               <span className="text-[10px] font-bold text-slate-350 uppercase tracking-wider block">
                 {selectedFile ? selectedFile.name : "Select Resume File"}
@@ -168,7 +168,7 @@ ${resumeDraft.education.map((edu: any) => `
               <button
                 onClick={handleUpload}
                 disabled={isUploading}
-                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl shadow-md transition-all disabled:opacity-50"
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-slate-900 dark:text-white font-bold text-xs rounded-xl shadow-md transition-all disabled:opacity-50"
               >
                 {isUploading ? "Processing Text..." : "Extract & Save Resume"}
               </button>
@@ -176,7 +176,7 @@ ${resumeDraft.education.map((edu: any) => `
           </div>
 
           <div className="glass-panel rounded-3xl p-6 space-y-4">
-            <h3 className="text-slate-200 font-bold text-sm tracking-wide uppercase border-b border-white/10 pb-2 flex items-center gap-2">
+            <h3 className="text-slate-200 font-bold text-sm tracking-wide uppercase border-b border-slate-300/50 dark:border-white/10 pb-2 flex items-center gap-2">
               <FolderOpen size={16} className="text-indigo-400" /> My Documents
             </h3>
             {isLoading ? (
@@ -188,7 +188,7 @@ ${resumeDraft.education.map((edu: any) => `
             ) : (
               <div className="space-y-3">
                 {documents.map((doc) => (
-                  <div key={doc.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-950/60 border border-slate-850 text-xs">
+                  <div key={doc.id} className="flex items-center justify-between p-3 rounded-xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 text-xs">
                     <div className="overflow-hidden pr-2">
                       <p className="text-slate-200 font-semibold truncate leading-tight">{doc.name}</p>
                       <span className="text-[9px] text-slate-500 font-medium font-mono">{new Date(doc.created_at).toLocaleDateString()}</span>
@@ -213,20 +213,20 @@ ${resumeDraft.education.map((edu: any) => `
             <div className="glass-panel rounded-3xl p-8 flex flex-col items-center justify-center text-center">
               <Edit3 size={40} className="mb-4 text-slate-600" />
               <h3 className="text-slate-200 font-bold text-base">Draft a Professional Resume</h3>
-              <p className="text-slate-400 text-xs mt-1 mb-6 max-w-md leading-relaxed">
+              <p className="text-slate-600 dark:text-slate-400 text-xs mt-1 mb-6 max-w-md leading-relaxed">
                 If you don't have a resume saved, MOSAIC can compile your basic education and skills details into a structured professional CV draft.
               </p>
               <button
                 onClick={handleDraftResume}
                 disabled={isDrafting}
-                className="px-5 py-3 bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 text-white font-bold text-xs rounded-xl shadow-lg transition-all disabled:opacity-50"
+                className="px-5 py-3 bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 text-slate-900 dark:text-white font-bold text-xs rounded-xl shadow-lg transition-all disabled:opacity-50"
               >
                 {isDrafting ? "Compiling draft details..." : "Generate Resume Draft"}
               </button>
             </div>
           ) : (
             <div className="glass-panel rounded-3xl p-6 space-y-6">
-              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center justify-between border-b border-slate-300/50 dark:border-white/10 pb-4">
                 <div>
                   <h3 className="text-slate-200 font-bold text-sm tracking-wide uppercase flex items-center gap-2">
                     <Sparkles size={16} className="text-indigo-400" /> Resume Assistant Draft
@@ -236,13 +236,13 @@ ${resumeDraft.education.map((edu: any) => `
                 <div className="flex items-center gap-2">
                   <button
                     onClick={downloadMarkdown}
-                    className="px-3 py-1.5 bg-slate-850 hover:bg-slate-800 border border-slate-750 text-indigo-400 font-bold text-[10px] rounded-lg transition-all flex items-center gap-1.5"
+                    className="px-3 py-1.5 bg-slate-850 hover:bg-slate-200 dark:bg-slate-800 border border-slate-750 text-indigo-400 font-bold text-[10px] rounded-lg transition-all flex items-center gap-1.5"
                   >
                     <Download size={12} /> Export Markdown
                   </button>
                   <button
                     onClick={handleSaveResume}
-                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-550 text-white font-bold text-[10px] rounded-lg transition-all flex items-center gap-1.5"
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-550 text-slate-900 dark:text-white font-bold text-[10px] rounded-lg transition-all flex items-center gap-1.5"
                   >
                     <Save size={12} /> Save to My Memory
                   </button>
@@ -259,49 +259,49 @@ ${resumeDraft.education.map((edu: any) => `
               <div className="space-y-4 text-xs">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">Name</label>
+                    <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 tracking-wider mb-2">Name</label>
                     <input
                       type="text"
                       value={resumeDraft.name}
                       onChange={(e) => setResumeDraft({ ...resumeDraft, name: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs"
+                      className="w-full px-3 py-2 rounded-xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 text-slate-200 text-xs"
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">Phone</label>
+                    <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 tracking-wider mb-2">Phone</label>
                     <input
                       type="text"
                       value={resumeDraft.phone}
                       onChange={(e) => setResumeDraft({ ...resumeDraft, phone: e.target.value })}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs"
+                      className="w-full px-3 py-2 rounded-xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 text-slate-200 text-xs"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">Summary</label>
+                  <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 tracking-wider mb-2">Summary</label>
                   <textarea
                     value={resumeDraft.summary}
                     onChange={(e) => setResumeDraft({ ...resumeDraft, summary: e.target.value })}
                     rows={2}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs leading-relaxed"
+                    className="w-full px-3 py-2 rounded-xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 text-slate-200 text-xs leading-relaxed"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">Skills (Comma-separated)</label>
+                  <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 tracking-wider mb-2">Skills (Comma-separated)</label>
                   <input
                     type="text"
                     value={resumeDraft.skills.join(", ")}
                     onChange={(e) => setResumeDraft({ ...resumeDraft, skills: e.target.value.split(",").map(s => s.trim()) })}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 text-xs"
+                    className="w-full px-3 py-2 rounded-xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 text-slate-200 text-xs"
                   />
                 </div>
 
                 <div className="space-y-3">
-                  <span className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">Experience</span>
+                  <span className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 tracking-wider">Experience</span>
                   {resumeDraft.experience.map((exp: any, index: number) => (
-                    <div key={index} className="bg-slate-950 border border-slate-850 p-4 rounded-xl space-y-2">
+                    <div key={index} className="bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 p-4 rounded-xl space-y-2">
                       <div className="grid grid-cols-2 gap-4">
                         <input
                           type="text"
@@ -311,7 +311,7 @@ ${resumeDraft.education.map((edu: any) => `
                             newExp[index].role = e.target.value;
                             setResumeDraft({ ...resumeDraft, experience: newExp });
                           }}
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-slate-200 text-[11px]"
+                          className="bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 rounded-lg px-2 py-1 text-slate-200 text-[11px]"
                           placeholder="Role"
                         />
                         <input
@@ -322,7 +322,7 @@ ${resumeDraft.education.map((edu: any) => `
                             newExp[index].company = e.target.value;
                             setResumeDraft({ ...resumeDraft, experience: newExp });
                           }}
-                          className="bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-slate-200 text-[11px]"
+                          className="bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 rounded-lg px-2 py-1 text-slate-200 text-[11px]"
                           placeholder="Company"
                         />
                       </div>
@@ -334,7 +334,7 @@ ${resumeDraft.education.map((edu: any) => `
                           setResumeDraft({ ...resumeDraft, experience: newExp });
                         }}
                         rows={2}
-                        className="w-full bg-slate-900 border border-slate-800 rounded-lg px-2 py-1 text-slate-200 text-[11px]"
+                        className="w-full bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 rounded-lg px-2 py-1 text-slate-200 text-[11px]"
                         placeholder="Details"
                       />
                     </div>

@@ -303,9 +303,9 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
   return (
     <div className="flex-1 flex overflow-hidden h-screen bg-transparent">
       {/* Left Pane: Conversational Log */}
-      <div className={`flex flex-col border-r border-white/10 transition-all duration-300 ${isViewportVisible ? "w-1/2 bg-black/20 backdrop-blur-sm" : "w-full"}`}>
+      <div className={`flex flex-col border-r border-slate-300/50 dark:border-white/10 transition-all duration-300 ${isViewportVisible ? "w-1/2 bg-white/40 dark:bg-black/20 backdrop-blur-sm" : "w-full"}`}>
         {/* Header Status */}
-        <div className="p-4 border-b border-white/10 bg-black/20 backdrop-blur-md flex items-center justify-between">
+        <div className="p-4 border-b border-slate-300/50 dark:border-white/10 bg-white/40 dark:bg-black/20 backdrop-blur-md flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className={`w-2.5 h-2.5 rounded-full ${status === "idle" ? "bg-slate-500" : status === "completed" ? "bg-emerald-500" : "bg-indigo-500 animate-ping"}`} />
             <div>
@@ -321,8 +321,8 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
                 onChange={(e) => setShowLiveViewport(e.target.checked)}
                 className="sr-only peer"
               />
-              <div className="relative w-7 h-4 bg-slate-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-slate-400 peer-checked:after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-indigo-600"></div>
-              <span className="text-[10px] font-bold text-slate-400 peer-checked:text-slate-200">Live Viewport</span>
+              <div className="relative w-7 h-4 bg-slate-200 dark:bg-slate-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-slate-400 peer-checked:after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-indigo-600"></div>
+              <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 peer-checked:text-slate-200">Live Viewport</span>
             </label>
             
             {status !== "idle" && (
@@ -352,17 +352,17 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
                 <div
                   className={`max-w-[85%] rounded-2xl p-4 text-xs leading-relaxed shadow-sm ${
                     isAgent
-                      ? "glass-card text-slate-100"
+                      ? "glass-card text-slate-900 dark:text-slate-100"
                       : isSystem
-                      ? "bg-black/30 border border-white/5 text-slate-400 text-center font-semibold backdrop-blur-sm"
-                      : "bg-gradient-to-r from-indigo-500 to-violet-500 text-white font-bold shadow-[0_0_15px_rgba(99,102,241,0.4)]"
+                      ? "bg-white/50 dark:bg-black/30 border border-slate-300/30 dark:border-white/5 text-slate-600 dark:text-slate-400 text-center font-semibold backdrop-blur-sm"
+                      : "bg-gradient-to-r from-indigo-500 to-violet-500 text-slate-900 dark:text-white font-bold shadow-[0_0_15px_rgba(99,102,241,0.4)]"
                   }`}
                 >
                   <p className="whitespace-pre-line">{msg.text}</p>
 
                   {/* Interactive Options Cards */}
                   {isAgent && msg.options && msg.options.length > 0 && (
-                    <div className="mt-4 space-y-2 border-t border-white/10 pt-3">
+                    <div className="mt-4 space-y-2 border-t border-slate-300/50 dark:border-white/10 pt-3">
                       <p className="text-[10px] uppercase font-bold text-indigo-400 tracking-wider">Recommended Options:</p>
                       <div className="grid grid-cols-1 gap-2">
                         {msg.options.map((opt) => (
@@ -370,17 +370,17 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
                             key={opt.id}
                             disabled={isLoading}
                             onClick={() => handleSelectOption(opt)}
-                            className="w-full text-left p-3 rounded-xl bg-slate-900/80 hover:bg-indigo-950/40 border border-white/10 hover:border-indigo-500/50 transition-all flex items-center justify-between gap-3 group"
+                            className="w-full text-left p-3 rounded-xl bg-white/40 dark:bg-black/20 backdrop-blur-md hover:bg-indigo-950/40 border border-slate-300/50 dark:border-white/10 hover:border-indigo-500/50 transition-all flex items-center justify-between gap-3 group"
                           >
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
                                 <span className="w-5 h-5 rounded-full bg-indigo-600/30 text-indigo-400 border border-indigo-500/30 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
                                   {opt.id}
                                 </span>
-                                <h5 className="font-bold text-slate-100 text-xs group-hover:text-indigo-300 transition-colors">{opt.title}</h5>
+                                <h5 className="font-bold text-slate-900 dark:text-slate-100 text-xs group-hover:text-indigo-300 transition-colors">{opt.title}</h5>
                               </div>
                               {opt.description && (
-                                <p className="text-[10px] text-slate-400 mt-1 ml-7">{opt.description}</p>
+                                <p className="text-[10px] text-slate-600 dark:text-slate-400 mt-1 ml-7">{opt.description}</p>
                               )}
                             </div>
                             <ChevronRight size={16} className="text-slate-500 group-hover:text-indigo-400 transition-transform group-hover:translate-x-1" />
@@ -401,17 +401,17 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
                     });
                     
                     return (
-                      <div className="mt-4 space-y-3 border-t border-white/10 pt-3">
+                      <div className="mt-4 space-y-3 border-t border-slate-300/50 dark:border-white/10 pt-3">
                         <div className="flex items-center justify-between flex-wrap gap-2">
-                          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Direct Store & Action Links ({filtered.length}):</p>
+                          <p className="text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 tracking-wider">Direct Store & Action Links ({filtered.length}):</p>
                         </div>
                         
                         <div className="grid grid-cols-1 gap-2.5">
                           {filtered.map((res, rIdx) => (
-                            <div key={rIdx} className="bg-slate-950 border border-white/5 rounded-xl p-3 flex flex-col justify-between gap-3 hover:border-white/15 hover:shadow-[0_4px_12px_rgba(255,255,255,0.02)] transition-all duration-300">
+                            <div key={rIdx} className="bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/30 dark:border-white/5 rounded-xl p-3 flex flex-col justify-between gap-3 hover:border-white/15 hover:shadow-[0_4px_12px_rgba(255,255,255,0.02)] transition-all duration-300">
                               <div>
                                 <div className="flex items-center justify-between gap-2">
-                                  <h4 className="font-bold text-white text-[11px] leading-tight line-clamp-1 flex-1">{res.title}</h4>
+                                  <h4 className="font-bold text-slate-900 dark:text-white text-[11px] leading-tight line-clamp-1 flex-1">{res.title}</h4>
                                   {res.type && (
                                     <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider bg-emerald-950/45 text-emerald-400 border border-emerald-900/30">
                                       {res.type}
@@ -420,9 +420,9 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
                                 </div>
                                 
                                 {(res.price || res.stipend || res.company || res.location) && (
-                                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-2.5 pt-2.5 border-t border-white/5 text-[9px]">
-                                    {res.company && <div className="text-slate-400 font-medium">🏪 <span className="text-slate-200 ml-1">{res.company}</span></div>}
-                                    {res.price && <div className="text-slate-400 font-extrabold text-emerald-400">💵 Price: <span className="text-emerald-350 font-extrabold ml-1">{res.price}</span></div>}
+                                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-2.5 pt-2.5 border-t border-slate-300/30 dark:border-white/5 text-[9px]">
+                                    {res.company && <div className="text-slate-600 dark:text-slate-400 font-medium">🏪 <span className="text-slate-200 ml-1">{res.company}</span></div>}
+                                    {res.price && <div className="text-slate-600 dark:text-slate-400 font-extrabold text-emerald-400">💵 Price: <span className="text-emerald-350 font-extrabold ml-1">{res.price}</span></div>}
                                   </div>
                                 )}
                               </div>
@@ -437,7 +437,7 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
                                 </a>
                                 <button
                                   onClick={() => handleApply(res.title, res.url)}
-                                  className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-[10px] text-white font-extrabold rounded-lg transition-all text-center flex-1 flex items-center justify-center gap-1.5 shadow-[0_0_10px_rgba(99,102,241,0.3)]"
+                                  className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-[10px] text-slate-900 dark:text-white font-extrabold rounded-lg transition-all text-center flex-1 flex items-center justify-center gap-1.5 shadow-[0_0_10px_rgba(99,102,241,0.3)]"
                                 >
                                   <Zap size={12} /> Automate via MOSAIC
                                 </button>
@@ -448,7 +448,7 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
                       </div>
                     );
                   })()}
-                  <span className="text-[9px] text-slate-400/85 block mt-2 text-right">
+                  <span className="text-[9px] text-slate-600 dark:text-slate-400/85 block mt-2 text-right">
                     {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
@@ -472,12 +472,12 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
                 onChange={(e) => setOtpInput(e.target.value)}
                 disabled={isLoading}
                 autoFocus
-                className="flex-1 px-4 py-2.5 rounded-xl bg-slate-900 border border-indigo-500/50 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-400 text-xs font-mono tracking-widest text-center"
+                className="flex-1 px-4 py-2.5 rounded-xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-indigo-500/50 text-slate-900 dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-400 text-xs font-mono tracking-widest text-center"
               />
               <button
                 type="submit"
                 disabled={isLoading || !otpInput.trim()}
-                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5"
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-slate-900 dark:text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5"
               >
                 Submit OTP <Check size={14} />
               </button>
@@ -487,17 +487,17 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
 
         {/* Action Plan Approval Overlay */}
         {actionPlan && (
-          <div className="p-4 border-t border-white/10 glass-panel space-y-4 rounded-t-3xl">
+          <div className="p-4 border-t border-slate-300/50 dark:border-white/10 glass-panel space-y-4 rounded-t-3xl">
             <div className="border border-indigo-500/30 bg-indigo-950/20 rounded-xl p-4 space-y-3">
               <div className="flex items-center gap-2 text-indigo-400 font-extrabold text-xs">
                 <Shield size={16} /> ACTION PREVIEW REQUIRED
               </div>
-              <p className="text-slate-300 text-xs">
-                MOSAIC has prepared checkout inputs on <span className="font-semibold text-white">{actionPlan.website}</span>.
+              <p className="text-slate-700 dark:text-slate-300 text-xs">
+                MOSAIC has prepared checkout inputs on <span className="font-semibold text-slate-900 dark:text-white">{actionPlan.website}</span>.
                 Review the fields mapping and parameters before submission.
               </p>
               
-              <div className="bg-slate-950 border border-slate-850 rounded-lg p-3 text-[11px] font-mono text-slate-350 space-y-1.5">
+              <div className="bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 rounded-lg p-3 text-[11px] font-mono text-slate-350 space-y-1.5">
                 <div><span className="text-slate-500">Goal:</span> {actionPlan.goal}</div>
                 <div><span className="text-slate-500">Risk Level:</span> <span className="text-rose-400 font-semibold">{actionPlan.risk_level}</span></div>
                 <div><span className="text-slate-500">Shared Data:</span> {JSON.stringify(actionPlan.information_to_be_sent)}</div>
@@ -512,14 +512,14 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
                 <button
                   onClick={() => handleApproveAction(true)}
                   disabled={isLoading}
-                  className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl shadow-md transition-all disabled:opacity-50"
+                  className="px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-slate-900 dark:text-white font-bold text-xs rounded-xl shadow-md transition-all disabled:opacity-50"
                 >
                   Approve & Execute Action
                 </button>
                 <button
                   onClick={() => handleApproveAction(false)}
                   disabled={isLoading}
-                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl border border-slate-750 transition-all disabled:opacity-50"
+                  className="px-4 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl border border-slate-750 transition-all disabled:opacity-50"
                 >
                   Cancel Plan
                 </button>
@@ -530,19 +530,19 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
 
         {/* Regular Input box */}
         {!actionPlan && (
-          <form onSubmit={handleSendMessage} className="p-4 border-t border-white/10 bg-black/20 backdrop-blur-md flex gap-2">
+          <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-300/50 dark:border-white/10 bg-white/40 dark:bg-black/20 backdrop-blur-md flex gap-2">
             <input
               type="text"
               placeholder="Ask MOSAIC: 'buy a good bengali book', 'recommend laptops', 'apply for jobs'..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={isLoading}
-              className="flex-1 px-4 py-3 rounded-xl bg-slate-900/40 border border-white/10 text-slate-100 placeholder-slate-400 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/50 transition-all text-xs backdrop-blur-sm shadow-inner"
+              className="flex-1 px-4 py-3 rounded-xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400/50 transition-all text-xs backdrop-blur-sm shadow-inner"
             />
             <button
               type="submit"
               disabled={isLoading || !input.trim()}
-              className="px-5 py-3 bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-white font-bold text-xs rounded-xl transition-all disabled:opacity-50 shadow-[0_0_15px_rgba(99,102,241,0.4)] flex items-center gap-2"
+              className="px-5 py-3 bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-400 hover:to-violet-400 text-slate-900 dark:text-white font-bold text-xs rounded-xl transition-all disabled:opacity-50 shadow-[0_0_15px_rgba(99,102,241,0.4)] flex items-center gap-2"
             >
               Send <Send size={14} />
             </button>
@@ -552,9 +552,9 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
 
       {/* Right Pane: Browser Viewport Split-Screen */}
       {isViewportVisible && (
-        <div className="w-1/2 bg-black/40 backdrop-blur-xl flex flex-col h-full border-l border-white/10">
-          <div className="p-3 border-b border-white/10 flex items-center justify-between text-xs text-slate-300 font-bold bg-black/20">
-            <div className="flex items-center gap-2 truncate pr-2">
+        <div className="w-1/2 bg-white/60 dark:bg-black/40 backdrop-blur-xl flex flex-col h-full border-l border-slate-300/50 dark:border-white/10">
+          <div className="p-3 border-b border-slate-300/50 dark:border-white/10 flex items-center justify-between text-xs text-slate-700 dark:text-slate-300 font-bold bg-white/40 dark:bg-black/20">
+            <div className="flex items-center gap-2 truncate pr-4">
               <Globe size={16} className="text-emerald-400 flex-shrink-0" />
               <span className="font-mono text-[10px] truncate">{browserUrl || "Live Browser Active"}</span>
             </div>
@@ -586,25 +586,23 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
                   {currentAction}
                 </span>
               )}
-              <span className="font-bold text-[9px] uppercase tracking-wider bg-slate-850 px-2 py-0.5 rounded text-slate-400">
+              <span className="font-bold text-[9px] uppercase tracking-wider bg-slate-850 px-2 py-0.5 rounded text-slate-600 dark:text-slate-400">
                 Live Viewport
               </span>
             </div>
           </div>
 
-          <div className="flex-1 bg-slate-950 p-4 overflow-y-auto overflow-x-hidden relative flex flex-col items-center">
+          <div className="flex-1 bg-white/40 dark:bg-black/20 backdrop-blur-md flex items-center justify-center p-4 overflow-hidden relative">
             {screenshot ? (
-              <div className="w-full flex flex-col items-center space-y-4">
-                <img
-                  src={screenshot}
-                  alt="Live browser screenshot"
-                  className="w-full max-w-full h-auto border border-slate-800 rounded-xl shadow-2xl object-contain select-none transition-all duration-300"
-                />
-              </div>
+              <img
+                src={screenshot}
+                alt="Live browser screenshot"
+                className="max-w-full max-h-full border border-slate-300/50 dark:border-white/10 rounded-xl shadow-2xl object-contain select-none transition-all duration-300"
+              />
             ) : (
               <div className="m-auto text-center space-y-3">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-indigo-500 mx-auto" />
-                <p className="text-slate-400 text-[11px] uppercase font-bold tracking-wider">
+                <p className="text-slate-600 dark:text-slate-400 text-[11px] uppercase font-bold tracking-wider">
                   Streaming Live Browser Automation...
                 </p>
               </div>

@@ -110,7 +110,7 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
           <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-200 to-violet-200 flex items-center gap-2">
             <Brain size={28} className="text-indigo-400" /> Memory & Transparency Center
           </h1>
-          <p className="text-slate-300/80 text-sm mt-2">
+          <p className="text-slate-700 dark:text-slate-300/80 text-sm mt-2">
             Review and manage all information MOSAIC currently stores about you in your isolated space.
           </p>
         </div>
@@ -129,10 +129,10 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
           <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-indigo-500" />
         </div>
       ) : memories.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-12 border border-dashed border-white/20 rounded-3xl glass-card">
+        <div className="flex-1 flex flex-col items-center justify-center p-12 border border-dashed border-slate-400/50 dark:border-white/20 rounded-3xl glass-card">
           <Brain size={40} className="mb-4 text-slate-600" />
           <h3 className="text-slate-200 font-bold text-base">Your memory is completely empty</h3>
-          <p className="text-slate-400 text-xs mt-1 text-center max-w-sm">
+          <p className="text-slate-600 dark:text-slate-400 text-xs mt-1 text-center max-w-sm">
             Start talking to the agent or fill out your profile details to populate your private profile variables.
           </p>
         </div>
@@ -162,10 +162,10 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}
                     rows={3}
-                    className="w-full text-xs bg-slate-950 border border-slate-800 rounded-xl p-3 text-slate-100 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 mb-4"
+                    className="w-full text-xs bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 rounded-xl p-3 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 mb-4"
                   />
                 ) : (
-                  <p className="text-slate-300 text-xs bg-black/30 rounded-xl p-3 border border-white/5 leading-relaxed break-words mb-4 line-clamp-4">
+                  <p className="text-slate-700 dark:text-slate-300 text-xs bg-white/50 dark:bg-black/30 rounded-xl p-3 border border-slate-300/30 dark:border-white/5 leading-relaxed break-words mb-4 line-clamp-4">
                     {item.value}
                   </p>
                 )}
@@ -178,18 +178,18 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between border-t border-slate-800/50 pt-4 gap-2">
+              <div className="flex items-center justify-between border-t border-slate-300/50 dark:border-white/10 pt-4 gap-2">
                 {editingItem?.id === item.id ? (
                   <>
                     <button
                       onClick={saveEdit}
-                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1"
+                      className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-slate-900 dark:text-white rounded-lg text-[10px] font-bold transition-all flex items-center gap-1"
                     >
                       <Save size={12} /> Save
                     </button>
                     <button
                       onClick={() => setEditingItem(null)}
-                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-[10px] font-bold transition-all"
+                      className="px-3 py-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-[10px] font-bold transition-all"
                     >
                       Cancel
                     </button>
@@ -205,7 +205,7 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => startEdit(item)}
-                        className="p-1.5 text-[10px] font-bold text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-lg transition-all"
+                        className="p-1.5 text-[10px] font-bold text-slate-600 dark:text-slate-400 hover:text-slate-200 hover:bg-slate-200 dark:bg-slate-800 rounded-lg transition-all"
                         title="Edit Memory"
                       >
                         <Edit2 size={12} />
@@ -228,11 +228,11 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
 
       {/* Transparency Modal */}
       {selectedWhy && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-white/40 dark:bg-black/20 backdrop-blur-md z-50 flex items-center justify-center p-4">
           <div className="glass-panel w-full max-w-lg p-6 relative rounded-3xl">
             <button
               onClick={() => setSelectedWhy(null)}
-              className="absolute top-4 right-4 text-slate-500 hover:text-slate-300 text-lg"
+              className="absolute top-4 right-4 text-slate-500 hover:text-slate-700 dark:text-slate-300 text-lg"
             >
               <X size={20} />
             </button>
@@ -240,35 +240,35 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
             <div className="flex items-center gap-3 mb-6">
               <span className="text-2xl"><Shield size={24} className="text-indigo-400" /></span>
               <div>
-                <h3 className="font-extrabold text-slate-100 text-base">Data Usage Transparency Report</h3>
-                <p className="text-xs text-slate-400">Auditing the private profile key: "{selectedWhy.key}"</p>
+                <h3 className="font-extrabold text-slate-900 dark:text-slate-100 text-base">Data Usage Transparency Report</h3>
+                <p className="text-xs text-slate-600 dark:text-slate-400">Auditing the private profile key: "{selectedWhy.key}"</p>
               </div>
             </div>
 
             <div className="space-y-4">
-              <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4">
+              <div className="bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 rounded-xl p-4">
                 <span className="text-[10px] text-slate-500 font-bold uppercase block mb-1">Stored Value</span>
                 <p className="text-xs text-slate-200 font-mono break-all">{selectedWhy.value}</p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-slate-950/30 border border-slate-800/50 rounded-xl p-3">
+                <div className="bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 rounded-xl p-3">
                   <span className="text-[10px] text-slate-500 font-bold uppercase block mb-0.5">Classification</span>
                   <span className="text-[11px] font-bold text-indigo-400">{selectedWhy.classification}</span>
                 </div>
-                <div className="bg-slate-950/30 border border-slate-800/50 rounded-xl p-3">
+                <div className="bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 rounded-xl p-3">
                   <span className="text-[10px] text-slate-500 font-bold uppercase block mb-0.5">Origin Source</span>
                   <span className="text-[11px] font-bold text-emerald-400">{selectedWhy.source}</span>
                 </div>
               </div>
 
-              <div className="border-y border-slate-800/80 py-4 my-2 space-y-2">
+              <div className="border-y border-slate-300/50 dark:border-white/10 py-4 my-2 space-y-2">
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-400 font-medium">Shared with other users:</span>
+                  <span className="text-slate-600 dark:text-slate-400 font-medium">Shared with other users:</span>
                   <span className="font-bold text-rose-500 flex items-center gap-1">No (Always Private)</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-400 font-medium">Exported to Global Web Knowledge:</span>
+                  <span className="text-slate-600 dark:text-slate-400 font-medium">Exported to Global Web Knowledge:</span>
                   <span className="font-bold text-rose-500 flex items-center gap-1">No (Sanitized Out)</span>
                 </div>
               </div>
@@ -276,18 +276,18 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
               <div>
                 <span className="text-[10px] text-slate-500 font-bold uppercase block mb-2">Usage Activity History</span>
                 {selectedWhy.usage_history.length === 0 ? (
-                  <p className="text-slate-400 text-xs bg-slate-950/20 p-3 rounded-lg border border-slate-850">
+                  <p className="text-slate-600 dark:text-slate-400 text-xs bg-white/40 dark:bg-black/20 backdrop-blur-md p-3 rounded-lg border border-slate-300/50 dark:border-white/10">
                     This memory item has not been retrieved for browser automation tasks yet.
                   </p>
                 ) : (
                   <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
                     {selectedWhy.usage_history.map((log, index) => (
-                      <div key={index} className="text-xs bg-slate-950/40 p-2.5 rounded-lg border border-slate-850 flex flex-col gap-1">
+                      <div key={index} className="text-xs bg-white/40 dark:bg-black/20 backdrop-blur-md p-2.5 rounded-lg border border-slate-300/50 dark:border-white/10 flex flex-col gap-1">
                         <div className="flex justify-between text-[10px] text-slate-500 font-bold">
                           <span>Task ID: {log.task_id}</span>
                           <span>{new Date(log.timestamp).toLocaleString()}</span>
                         </div>
-                        <p className="text-slate-300 truncate font-medium">Query: "{log.task_description}"</p>
+                        <p className="text-slate-700 dark:text-slate-300 truncate font-medium">Query: "{log.task_description}"</p>
                         {log.website && (
                           <span className="text-[10px] text-indigo-400 font-semibold">Accessed: {log.website}</span>
                         )}
@@ -301,7 +301,7 @@ export default function MemoryManager({ email }: MemoryManagerProps) {
             <div className="mt-6 flex justify-end">
               <button
                 onClick={() => setSelectedWhy(null)}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-slate-900 dark:text-white rounded-xl text-xs font-bold transition-all"
               >
                 Close Audit Report
               </button>

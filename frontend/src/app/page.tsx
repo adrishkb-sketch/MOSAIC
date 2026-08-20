@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import LoginSplash from "@/components/LoginSplash";
+import LandingPage from "@/components/landing/LandingPage";
+import InteractiveBackground from "@/components/landing/InteractiveBackground";
 import Sidebar from "@/components/Sidebar";
 import AgentChat from "@/components/AgentChat";
 import MemoryManager from "@/components/MemoryManager";
@@ -47,9 +48,9 @@ export default function DashboardPage() {
     );
   }
 
-  // Render Login Splash if email is not set
+  // Render Landing Page if email is not set
   if (!email) {
-    return <LoginSplash onLogin={handleLogin} />;
+    return <LandingPage onLogin={handleLogin} />;
   }
 
   // Render correct tab view
@@ -72,25 +73,9 @@ export default function DashboardPage() {
     }
   };
 
-  const getBackgroundGradient = () => {
-    switch (globalStatus) {
-      case "browsing":
-        return "radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.2) 0px, transparent 50%), radial-gradient(at 100% 0%, rgba(20, 184, 166, 0.2) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.2) 0px, transparent 50%), radial-gradient(at 0% 100%, rgba(20, 184, 166, 0.2) 0px, transparent 50%)";
-      case "error":
-        return "radial-gradient(at 0% 0%, rgba(244, 63, 94, 0.2) 0px, transparent 50%), radial-gradient(at 100% 0%, rgba(245, 158, 11, 0.2) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(244, 63, 94, 0.2) 0px, transparent 50%), radial-gradient(at 0% 100%, rgba(245, 158, 11, 0.2) 0px, transparent 50%)";
-      case "idle":
-      default:
-        return "radial-gradient(at 0% 0%, rgba(79, 70, 229, 0.2) 0px, transparent 50%), radial-gradient(at 100% 0%, rgba(139, 92, 246, 0.2) 0px, transparent 50%), radial-gradient(at 100% 100%, rgba(79, 70, 229, 0.2) 0px, transparent 50%), radial-gradient(at 0% 100%, rgba(139, 92, 246, 0.2) 0px, transparent 50%)";
-    }
-  };
-
   return (
     <div className="flex-grow flex h-screen overflow-hidden bg-transparent text-slate-100 font-sans relative">
-      <motion.div 
-        className="absolute inset-0 -z-10"
-        animate={{ background: getBackgroundGradient() }}
-        transition={{ duration: 1.5, ease: "easeInOut" }}
-      />
+      <InteractiveBackground status={globalStatus === "browsing" ? "browsing" : globalStatus === "error" ? "error" : "idle"} />
       <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}

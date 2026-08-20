@@ -108,7 +108,7 @@ export default function ProfileForm({ email }: ProfileFormProps) {
         <h1 className="text-3xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-indigo-200 to-violet-200 flex items-center gap-2">
           <User size={28} className="text-indigo-400" /> Universal Profile
         </h1>
-        <p className="text-slate-300/80 text-sm mt-2">
+        <p className="text-slate-700 dark:text-slate-300/80 text-sm mt-2">
           Provide your information once. MOSAIC will retrieve these details when mapping form fields, protecting your credentials.
         </p>
       </div>
@@ -116,50 +116,50 @@ export default function ProfileForm({ email }: ProfileFormProps) {
       <form onSubmit={handleSave} className="space-y-6 max-w-4xl">
         {/* Section 1: Basic details */}
         <div className="glass-panel rounded-3xl p-6 space-y-4">
-          <h3 className="text-slate-200 font-bold text-sm tracking-wide uppercase border-b border-white/10 pb-2 flex items-center gap-2">
+          <h3 className="text-slate-200 font-bold text-sm tracking-wide uppercase border-b border-slate-300/50 dark:border-white/10 pb-2 flex items-center gap-2">
             <Info size={16} className="text-indigo-400" /> Basic Information
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">Full Name</label>
+              <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 tracking-wider mb-2">Full Name</label>
               <input
                 type="text"
                 name="name"
                 value={formData.name}
                 onChange={handleChange}
                 placeholder="John Doe"
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-all text-xs"
+                className="w-full px-4 py-2.5 rounded-xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 text-slate-900 dark:text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-all text-xs"
               />
             </div>
             <div>
-              <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">Email Address</label>
+              <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 tracking-wider mb-2">Email Address</label>
               <input
                 type="email"
                 value={email}
                 disabled
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-500 cursor-not-allowed text-xs font-semibold"
+                className="w-full px-4 py-2.5 rounded-xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 text-slate-500 cursor-not-allowed text-xs font-semibold"
               />
             </div>
             <div>
-              <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">Phone Number</label>
+              <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 tracking-wider mb-2">Phone Number</label>
               <input
                 type="tel"
                 name="phone"
                 value={formData.phone}
                 onChange={handleChange}
                 placeholder="+1 555 0199"
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-all text-xs"
+                className="w-full px-4 py-2.5 rounded-xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 text-slate-900 dark:text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-all text-xs"
               />
             </div>
             <div>
-              <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">Current Location</label>
+              <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 tracking-wider mb-2">Current Location</label>
               <input
                 type="text"
                 name="address"
                 value={formData.address}
                 onChange={handleChange}
                 placeholder="Kolkata, West Bengal"
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-all text-xs"
+                className="w-full px-4 py-2.5 rounded-xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 text-slate-900 dark:text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-all text-xs"
               />
             </div>
           </div>
@@ -167,41 +167,41 @@ export default function ProfileForm({ email }: ProfileFormProps) {
 
         {/* Section 2: Education */}
         <div className="glass-panel rounded-3xl p-6 space-y-4">
-          <h3 className="text-slate-200 font-bold text-sm tracking-wide uppercase border-b border-white/10 pb-2 flex items-center gap-2">
+          <h3 className="text-slate-200 font-bold text-sm tracking-wide uppercase border-b border-slate-300/50 dark:border-white/10 pb-2 flex items-center gap-2">
             <GraduationCap size={16} className="text-indigo-400" /> Academic Information
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">College / University</label>
+              <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 tracking-wider mb-2">College / University</label>
               <input
                 type="text"
                 name="college"
                 value={formData.college}
                 onChange={handleChange}
                 placeholder="Indian Institute of Technology"
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-all text-xs"
+                className="w-full px-4 py-2.5 rounded-xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 text-slate-900 dark:text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-all text-xs"
               />
             </div>
             <div>
-              <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">Degree / Major</label>
+              <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 tracking-wider mb-2">Degree / Major</label>
               <input
                 type="text"
                 name="degree"
                 value={formData.degree}
                 onChange={handleChange}
                 placeholder="B.Tech Computer Science"
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-all text-xs"
+                className="w-full px-4 py-2.5 rounded-xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 text-slate-900 dark:text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-all text-xs"
               />
             </div>
             <div>
-              <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">CGPA / GPA</label>
+              <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 tracking-wider mb-2">CGPA / GPA</label>
               <input
                 type="text"
                 name="cgpa"
                 value={formData.cgpa}
                 onChange={handleChange}
                 placeholder="8.9 / 10"
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-all text-xs"
+                className="w-full px-4 py-2.5 rounded-xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 text-slate-900 dark:text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-all text-xs"
               />
             </div>
           </div>
@@ -209,56 +209,56 @@ export default function ProfileForm({ email }: ProfileFormProps) {
 
         {/* Section 3: Professional detail */}
         <div className="glass-panel rounded-3xl p-6 space-y-4">
-          <h3 className="text-slate-200 font-bold text-sm tracking-wide uppercase border-b border-white/10 pb-2 flex items-center gap-2">
+          <h3 className="text-slate-200 font-bold text-sm tracking-wide uppercase border-b border-slate-300/50 dark:border-white/10 pb-2 flex items-center gap-2">
             <Briefcase size={16} className="text-indigo-400" /> Professional Profile & Links
           </h3>
           <div className="space-y-4">
             <div>
-              <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">Skills (Comma-separated)</label>
+              <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 tracking-wider mb-2">Skills (Comma-separated)</label>
               <input
                 type="text"
                 name="skills"
                 value={formData.skills}
                 onChange={handleChange}
                 placeholder="Python, React, TypeScript, C++, Machine Learning"
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-all text-xs"
+                className="w-full px-4 py-2.5 rounded-xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 text-slate-900 dark:text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-all text-xs"
               />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">GitHub Profile URL</label>
+                <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 tracking-wider mb-2">GitHub Profile URL</label>
                 <input
                   type="url"
                   name="github"
                   value={formData.github}
                   onChange={handleChange}
                   placeholder="https://github.com/username"
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-all text-xs"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 text-slate-900 dark:text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-all text-xs"
                 />
               </div>
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">LinkedIn Profile URL</label>
+                <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 tracking-wider mb-2">LinkedIn Profile URL</label>
                 <input
                   type="url"
                   name="linkedin"
                   value={formData.linkedin}
                   onChange={handleChange}
                   placeholder="https://linkedin.com/in/username"
-                  className="w-full px-4 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-all text-xs"
+                  className="w-full px-4 py-2.5 rounded-xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 text-slate-900 dark:text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-all text-xs"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-2">Work Experience Summary</label>
+              <label className="block text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 tracking-wider mb-2">Work Experience Summary</label>
               <textarea
                 name="experience"
                 value={formData.experience}
                 onChange={handleChange}
                 placeholder="Software Intern at Tech Corp (3 months)..."
                 rows={3}
-                className="w-full px-4 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-all text-xs"
+                className="w-full px-4 py-2.5 rounded-xl bg-white/40 dark:bg-black/20 backdrop-blur-md border border-slate-300/50 dark:border-white/10 text-slate-900 dark:text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-all text-xs"
               />
             </div>
           </div>
@@ -269,7 +269,7 @@ export default function ProfileForm({ email }: ProfileFormProps) {
           <button
             type="submit"
             disabled={isSaving}
-            className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 text-white font-bold text-xs rounded-xl shadow-lg transition-all disabled:opacity-50"
+            className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-violet-500 hover:from-indigo-600 hover:to-violet-600 text-slate-900 dark:text-white font-bold text-xs rounded-xl shadow-lg transition-all disabled:opacity-50"
           >
             {isSaving ? "Saving to My Memory..." : "Save Profile Details"}
           </button>
