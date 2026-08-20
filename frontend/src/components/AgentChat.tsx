@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { api, ChatMessage, ActionPlanItem, SearchResultItem, InteractiveOptionItem } from "@/lib/api";
-import { Brain, Globe, HelpCircle, Settings, Hourglass, RefreshCw, CheckCircle, XCircle, Sparkles, StopCircle, Shield, Zap, Send, KeyRound, Check, ChevronRight } from "lucide-react";
+import { Brain, Globe, HelpCircle, Settings, Hourglass, RefreshCw, CheckCircle, XCircle, Sparkles, StopCircle, Shield, Zap, Send, KeyRound, Check, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
+
 import { motion, AnimatePresence } from "framer-motion";
 
 interface AgentChatProps {
@@ -553,11 +554,33 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
       {isViewportVisible && (
         <div className="w-1/2 bg-black/40 backdrop-blur-xl flex flex-col h-full border-l border-white/10">
           <div className="p-3 border-b border-white/10 flex items-center justify-between text-xs text-slate-300 font-bold bg-black/20">
-            <div className="flex items-center gap-2 truncate pr-4">
+            <div className="flex items-center gap-2 truncate pr-2">
               <Globe size={16} className="text-emerald-400 flex-shrink-0" />
               <span className="font-mono text-[10px] truncate">{browserUrl || "Live Browser Active"}</span>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
+              {browserActive && (
+                <div className="flex items-center gap-1 bg-slate-900 border border-white/10 rounded-lg p-0.5">
+                  <button
+                    type="button"
+                    disabled={isLoading}
+                    onClick={() => sendQuery("scroll up")}
+                    title="Scroll Up Live Page"
+                    className="p-1 rounded hover:bg-indigo-600/30 text-slate-300 hover:text-indigo-300 text-[10px] font-bold transition-all disabled:opacity-50"
+                  >
+                    <ChevronUp size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isLoading}
+                    onClick={() => sendQuery("scroll down")}
+                    title="Scroll Down Live Page"
+                    className="p-1 rounded hover:bg-indigo-600/30 text-slate-300 hover:text-indigo-300 text-[10px] font-bold transition-all disabled:opacity-50"
+                  >
+                    <ChevronDown size={14} />
+                  </button>
+                </div>
+              )}
               {currentAction && (
                 <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-indigo-950/60 text-indigo-300 border border-indigo-800/40">
                   {currentAction}
@@ -569,15 +592,17 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
             </div>
           </div>
 
-          <div className="flex-1 bg-slate-950 flex items-center justify-center p-4 overflow-hidden relative">
+          <div className="flex-1 bg-slate-950 p-4 overflow-y-auto overflow-x-hidden relative flex flex-col items-center">
             {screenshot ? (
-              <img
-                src={screenshot}
-                alt="Live browser screenshot"
-                className="max-w-full max-h-full border border-slate-800 rounded-xl shadow-2xl object-contain select-none transition-all duration-300"
-              />
+              <div className="w-full flex flex-col items-center space-y-4">
+                <img
+                  src={screenshot}
+                  alt="Live browser screenshot"
+                  className="w-full max-w-full h-auto border border-slate-800 rounded-xl shadow-2xl object-contain select-none transition-all duration-300"
+                />
+              </div>
             ) : (
-              <div className="text-center space-y-3">
+              <div className="m-auto text-center space-y-3">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-indigo-500 mx-auto" />
                 <p className="text-slate-400 text-[11px] uppercase font-bold tracking-wider">
                   Streaming Live Browser Automation...
@@ -590,3 +615,4 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
     </div>
   );
 }
+

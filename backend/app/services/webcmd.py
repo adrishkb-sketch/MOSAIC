@@ -67,9 +67,9 @@ class WebcmdClient:
         Runs a Playwright JavaScript snippet in the session.
         """
         try:
-            # We use subprocess.Popen to pipe the script to stdin
+            # Increase output limit to 10MB to accommodate rich DOM evaluations
             process = subprocess.Popen(
-                ["webcmd", "--session", session_id, "browser", "run", "--stdin", "--max-output", "2000000", "--timeout", str(timeout)],
+                ["webcmd", "--session", session_id, "browser", "run", "--stdin", "--max-output", "10000000", "--timeout", str(timeout)],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
@@ -89,14 +89,27 @@ class WebcmdClient:
         except Exception as e:
             raise RuntimeError(f"Error executing script in Webcmd: {str(e)}")
 
+    def scroll_page(self, session_id: str, direction: str = "down", amount: int = 600) -> bool:
+        """Scrolls the live browser page up or down."""
+        delta = amount if direction == "down" else -amount
+        script = f"""
+        window.scrollBy({{ top: {delta}, behavior: 'smooth' }});
+        return true;
+        """
+        try:
+            res = self.run_script(session_id, script, timeout=5)
+            return bool(res.get("ok"))
+        except Exception:
+            return False
+
     def get_screenshot(self, session_id: str) -> Optional[str]:
         """
-        Captures a base64 screenshot of the active browser page.
+        Captures a base64 PNG screenshot of the active browser page.
         Returns a data URL: 'data:image/png;base64,...'
         """
-        script = "const buffer = await page.screenshot(); return buffer.toString();"
+        script = "const buffer = await page.screenshot(); return buffer.toString('base64');"
         try:
-            res = self.run_script(session_id, script)
+            res = self.run_script(session_id, script, timeout=12)
             if not res.get("ok") or not res.get("result"):
                 return None
                 
@@ -115,7 +128,6 @@ class WebcmdClient:
             # If it's a dict mapping indexes to bytes
             if isinstance(raw_result, dict):
                 try:
-                    # Sort keys to preserve order
                     sorted_keys = sorted([int(k) for k in raw_result.keys()])
                     byte_values = [raw_result[str(k)] for k in sorted_keys]
                     byte_data = bytes(byte_values)
@@ -126,19 +138,18 @@ class WebcmdClient:
 
             # Fallback if it is already a base64 string
             if isinstance(raw_result, str):
-                # Check if it contains commas or is pure base64
-                if raw_result.startswith("iVBORw"):  # Standard PNG base64 header
-                    return f"data:image/png;base64,{raw_result}"
-                else:
-                    # Try to see if it is a byte string representation
-                    clean_str = raw_result.strip()
-                    # If it's pure base64
-                    return f"data:image/png;base64,{clean_str}"
-                    
+                clean_str = raw_result.strip()
+                if clean_str.startswith("data:image"):
+                    return clean_str
+                return f"data:image/png;base64,{clean_str}"
+                
             return None
         except Exception as e:
             print(f"Warning: Failed to capture screenshot: {e}")
             return None
+
+
+
 
     def get_accessibility_snapshot(self, session_id: str) -> str:
         """
