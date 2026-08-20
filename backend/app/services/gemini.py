@@ -90,19 +90,35 @@ class ResumeDraftResult(BaseModel):
     projects: List[ResumeDraftProject]
     summary: str
 
+class InteractiveOption(BaseModel):
+    id: str = Field(description="Short identifier or index like '1', '2', '3'")
+    title: str = Field(description="Option title, e.g. 'Byomkesh Bakshi Samagra' or 'Option 1: Hardcover Edition'")
+    description: Optional[str] = Field(None, description="Short detail, author, price, rating, or subtitle")
+    url: Optional[str] = Field(None, description="Direct URL if navigating to a separate link")
+    selector: Optional[str] = Field(None, description="CSS selector on the current page to click if chosen")
+
 class TableRow(BaseModel):
     cells: List[str]
 
 class BrowserNextAction(BaseModel):
     thought: str = Field(description="The thinking process, analyzing the page state, links, or fields relative to the goal.")
-    action_type: str = Field(description="One of: click, fill, navigate, wait, ask_user_otp, submit_form_approval, complete")
+    action_type: str = Field(description="One of: click, fill, navigate, wait, ask_user_choice, ask_user_otp, submit_form_approval, payment_boundary, complete")
     selector: Optional[str] = Field(None, description="CSS selector or element selector for click/fill")
+    click_text: Optional[str] = Field(None, description="Visible text of the button, link, or tab to click (e.g., 'Price -- Low to High', 'Cheapest', 'Buy Now')")
     value: Optional[str] = Field(None, description="The value to fill if action_type is fill")
+    press_enter: Optional[bool] = Field(False, description="Whether to press Enter after typing into input field (e.g. for search inputs)")
     url: Optional[str] = Field(None, description="The target URL to navigate to if action_type is navigate")
-    question: Optional[str] = Field(None, description="The question or OTP request message to return to the user if action_type is ask_user_otp")
+    question: Optional[str] = Field(None, description="The question, clarification, or OTP request message to return to the user")
+    options: Optional[List[InteractiveOption]] = Field(None, description="List of selectable options/items for the user to choose from if action_type is ask_user_choice")
     table_headers: Optional[List[str]] = Field(None, description="Headers for the comparison table")
     table_rows: Optional[List[TableRow]] = Field(None, description="Rows for the comparison table (each row contains a cells list matching headers)")
     final_summary: Optional[str] = Field(None, description="Final summary text if task is complete")
+
+
+class BroadQueryRecommendation(BaseModel):
+    is_broad_query: bool = Field(description="True if the user request is broad, exploratory, or recommendations-seeking (e.g. 'buy a good bengali book', 'suggest coding laptops', 'find data science internships') rather than an exact specific command with all parameters.")
+    recommendations_summary: str = Field(description="Friendly explanation and helpful guidance/questions for the user.")
+    suggested_options: List[InteractiveOption] = Field(description="3-5 specific recommendations, genres, top picks, or filters for the user to pick from.")
 
 # --- Gemini Service Provider Class ---
 
@@ -116,7 +132,9 @@ class GeminiService:
     def reload_keys(self):
         raw_key = settings.GEMINI_API_KEY
         if raw_key:
-            self.api_keys = [k.strip() for k in raw_key.split(",") if k.strip()]
+            keys = [k.strip() for k in raw_key.split(",") if k.strip()]
+            # Filter out obvious placeholder values like 'your_gemini_api_key_here'
+            self.api_keys = [k for k in keys if not k.lower().startswith("your_")]
         else:
             self.api_keys = []
 
@@ -201,6 +219,24 @@ class GeminiService:
         """
         return self._call_model(prompt, TaskIntent)
 
+    def analyze_query_or_recommend(self, user_request: str, user_profile: Dict[str, Any]) -> BroadQueryRecommendation:
+        prompt = f"""
+        You are MOSAIC, an intelligent personal browser agent.
+        The user said: "{user_request}"
+        Known user profile: {json.dumps(user_profile)}
+
+        Analyze if this is a broad, discovery, or recommendation-seeking request (e.g. "buy a good bengali book", "suggest laptops for college", "find tech events in Kolkata", "recommend sci-fi books").
+        If it IS a broad request:
+        1. Set is_broad_query to true.
+        2. In recommendations_summary, provide a friendly, helpful conversational response with expert curated context, and ask what they prefer.
+        3. In suggested_options, give 3-5 specific top-rated recommendations or sub-genres/categories (with id, title, description).
+
+        If the user already specified a precise item/action (e.g. "buy Byomkesh Bakshi Samagra", "search for lenovo ideapad 3 on amazon", "apply for python intern at Google"):
+        1. Set is_broad_query to false.
+        2. suggested_options can be empty.
+        """
+        return self._call_model(prompt, BroadQueryRecommendation)
+
     def identify_missing_info(self, user_request: str, user_profile: Dict[str, Any]) -> MissingInformation:
         prompt = f"""
         Given the user request: "{user_request}"
@@ -265,30 +301,49 @@ class GeminiService:
         current_url: Optional[str],
         page_snapshot: str,
         user_profile: Dict[str, Any],
-        execution_history: List[Dict[str, Any]]
+        execution_history: List[Dict[str, Any]],
+        user_instruction: Optional[str] = None
     ) -> BrowserNextAction:
         prompt = f"""
-        You are driving a browser agent to achieve this user goal: "{goal}"
-        
-        Current URL: {current_url}
-        Accessibility tree snapshot of the page:
+        You are MOSAIC, an intelligent personal browser agent driving a live browser session.
+        Goal: "{goal}"
+        Latest User Instruction: "{user_instruction or goal}"
+        Current Page URL: {current_url}
+
+        Accessibility Snapshot / DOM elements:
         {page_snapshot}
-        
-        User's Private Profile: {json.dumps(user_profile)}
-        Execution History so far: {json.dumps(execution_history)}
-        
-        Analyze the current page state, compare it with the goal, and decide the NEXT action.
-        Guidelines:
-        0. FIRST-STEP SITE ANALYSIS: Analyze the page state at the very beginning of the site navigation. Check if a cookie banner, sign-in block, or sign-up modal is blocking the page or is required to proceed. If so, handle it first (e.g. click accept, or perform sign-in/sign-up using profile credentials if present). Do not skip this step.
-        1. If you need to search or research first, navigate to a real, relevant website or search portal (e.g. Google, LinkedIn, Amazon, etc.).
-        2. If you see search results or list options, analyze them, select the best ones, and you can prepare a structured table (using table_headers and table_data) to compare them for the user.
-        3. If you need to click a link to navigate to a target detail page, use 'click' or 'navigate'.
-        4. If you need to fill forms, map fields from the User Profile.
-        5. If you reach a payment checkout page, safety rules require you to stop and ask for manual payment.
-        6. If you need a verification code, OTP, or user input, set action_type to 'ask_user_otp' and define the question.
-        7. If you are ready to perform a consequential action (submitting a form, booking a ticket, registering), set action_type to 'submit_form_approval' and describe it.
-        8. If you have successfully achieved the goal, set action_type to 'complete' and provide a final_summary.
+
+        User Profile / Preferences:
+        {json.dumps(user_profile)}
+
+        Execution History so far:
+        {json.dumps(execution_history)}
+
+        Analyze the current page state, compare it with the goal and latest instruction, and determine the exact NEXT logical action to execute on this website.
+
+        Decision Guidelines:
+        1. POPUPS / COOKIES / MODALS: If a popup, overlay, location prompt, or cookie consent is blocking the page, set action_type to 'click' on the close/accept button.
+        2. SORTING & FILTERING: If the user wants the cheapest, lowest price, highest rating, or a specific brand/filter:
+           - Look for sort tabs/dropdowns/links (e.g. 'Price -- Low to High', 'Price: Low to High', 'Sort By', 'Filters', 'Customer Rating', 'Low to High').
+           - Set action_type to 'click' with the appropriate selector or click_text.
+        3. SEARCHING WITHIN PORTAL: If the user wants to search for a new item or keyword on this portal:
+           - Locate the search input (e.g. input[title*="Search"], input[name="q"], #twotabsearchtextbox, input[placeholder*="Search"]).
+           - Set action_type to 'fill', set selector, set value to the search term, and set press_enter=True.
+        4. CATALOG / SEARCH RESULTS / CHOICES: If on a catalog/search results page and items are visible:
+           - If the user needs to select an item, extract the top 3-5 visible items into the 'options' list (with id, title, price/details, and selector or url).
+           - Set action_type to 'ask_user_choice' and explain the choices concisely.
+        5. PRODUCT DETAILS & CART: If on a product page and the goal is to buy/purchase/apply:
+           - Set action_type to 'click' on 'Buy Now', 'Add to Cart', 'Apply Now', or 'Proceed to Checkout'.
+        6. VERIFICATION / OTP: If the page asks for an SMS or email OTP:
+           - Set action_type to 'ask_user_otp', selector to OTP input, and question to "Please enter the OTP verification code sent to you:".
+        7. FORM FILLING: If on a form (address, shipping, job application):
+           - Map user profile fields and set action_type to 'fill'.
+        8. PAYMENT SAFETY BOUNDARY: If checkout reaches payment method selection, card entry, UPI, or final place order:
+           - STRICT RULE: set action_type to 'payment_boundary' and explain that manual payment is required inside the browser viewport.
+        9. SUBMISSION CONFIRMATION: If ready to submit a non-payment consequential action, set action_type to 'submit_form_approval'.
+        10. COMPLETION: If the user's instruction or task is fully satisfied, set action_type to 'complete' with final_summary.
         """
         return self._call_model(prompt, BrowserNextAction)
 
 gemini_service = GeminiService()
+

@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { api, ChatMessage, ActionPlanItem, SearchResultItem } from "@/lib/api";
-import { Brain, Globe, HelpCircle, Settings, Hourglass, RefreshCw, CheckCircle, XCircle, Sparkles, StopCircle, Shield, Zap, Send } from "lucide-react";
+import { api, ChatMessage, ActionPlanItem, SearchResultItem, InteractiveOptionItem } from "@/lib/api";
+import { Brain, Globe, HelpCircle, Settings, Hourglass, RefreshCw, CheckCircle, XCircle, Sparkles, StopCircle, Shield, Zap, Send, KeyRound, Check, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface AgentChatProps {
@@ -11,13 +11,16 @@ interface AgentChatProps {
 }
 
 export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
-  const [showLiveViewport, setShowLiveViewport] = useState(false);
+  const [showLiveViewport, setShowLiveViewport] = useState(true);
   const [activeFilter, setActiveFilter] = useState<string>("all");
   const [sortOrder, setSortOrder] = useState<string>("default");
+  const [currentAction, setCurrentAction] = useState<string | null>(null);
+  const [otpInput, setOtpInput] = useState("");
+  
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       sender: "agent",
-      text: "Hello! I am MOSAIC, your personal browser agent. I can help you search for internships, research products, registry for events, or automate repetitive web tasks. What would you like to achieve today?",
+      text: "Hello! I am MOSAIC, your personal browser agent. I can help you search for books, research products, apply for jobs, or automate multi-step checkout processes safely. What would you like to achieve today?",
       timestamp: new Date()
     }
   ]);
@@ -42,7 +45,7 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages, status]);
+  }, [messages, status, actionPlan]);
 
   useEffect(() => {
     if (setGlobalStatus) {
@@ -56,29 +59,27 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
     }
   }, [status, setGlobalStatus]);
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
+  const sendQuery = async (queryText: string) => {
+    if (!queryText.trim() || isLoading) return;
 
     const userMessage: ChatMessage = {
       sender: "user",
-      text: input,
+      text: queryText,
       timestamp: new Date()
     };
 
     setMessages((prev) => [...prev, userMessage]);
-    setInput("");
     setIsLoading(true);
     setStatus("thinking");
 
     try {
       const response = await api.chat(email, userMessage.text, taskId || undefined);
       
-      // Update state based on agent response
       if (response.task_id) setTaskId(response.task_id);
       setBrowserActive(response.browser_active);
       if (response.browser_url) setBrowserUrl(response.browser_url);
       if (response.screenshot) setScreenshot(response.screenshot);
+      if (response.current_action) setCurrentAction(response.current_action);
 
       // Add agent reply
       setMessages((prev) => [
@@ -87,7 +88,9 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
           sender: "agent",
           text: response.response,
           timestamp: new Date(),
-          results: response.results
+          results: response.results,
+          options: response.options,
+          current_action: response.current_action
         }
       ]);
 
@@ -119,14 +122,36 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
     }
   };
 
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+    const text = input;
+    setInput("");
+    await sendQuery(text);
+  };
+
+  const handleSelectOption = async (option: InteractiveOptionItem) => {
+    await sendQuery(`Select option: ${option.title}`);
+  };
+
+  const handleOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!otpInput.trim()) return;
+    const otp = otpInput;
+    setOtpInput("");
+    await sendQuery(otp);
+  };
+
   const handleApply = async (title: string, url: string) => {
     setInput("");
     setIsLoading(true);
     setStatus("browsing");
+    setBrowserActive(true);
+    setBrowserUrl(url);
 
     const userMessage: ChatMessage = {
       sender: "user",
-      text: `Apply for ${title}`,
+      text: `Automate for ${title}`,
       timestamp: new Date()
     };
     setMessages((prev) => [...prev, userMessage]);
@@ -138,6 +163,7 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
       setBrowserActive(response.browser_active);
       if (response.browser_url) setBrowserUrl(response.browser_url);
       if (response.screenshot) setScreenshot(response.screenshot);
+      if (response.current_action) setCurrentAction(response.current_action);
 
       setMessages((prev) => [
         ...prev,
@@ -145,7 +171,9 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
           sender: "agent",
           text: response.response,
           timestamp: new Date(),
-          results: response.results
+          results: response.results,
+          options: response.options,
+          current_action: response.current_action
         }
       ]);
 
@@ -168,7 +196,7 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
         ...prev,
         {
           sender: "system",
-          text: `Apply automation failed: ${e.message || "Unknown error"}`,
+          text: `Automation failed: ${e.message || "Unknown error"}`,
           timestamp: new Date()
         }
       ]);
@@ -203,13 +231,15 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
       setBrowserActive(response.browser_active);
       if (response.browser_url) setBrowserUrl(response.browser_url);
       if (response.screenshot) setScreenshot(response.screenshot);
+      if (response.current_action) setCurrentAction(response.current_action);
 
       setMessages((prev) => [
         ...prev,
         {
           sender: "agent",
           text: response.response,
-          timestamp: new Date()
+          timestamp: new Date(),
+          options: response.options
         }
       ]);
 
@@ -235,13 +265,13 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
   };
 
   const handleCancelTask = async () => {
-    // Clear agent execution state
     setStatus("idle");
     setTaskId(null);
     setActionPlan(null);
     setBrowserActive(false);
     setScreenshot(null);
     setBrowserUrl(null);
+    setCurrentAction(null);
     setMessages((prev) => [
       ...prev,
       {
@@ -254,20 +284,20 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
 
   const getStatusText = () => {
     switch (status) {
-      case "thinking": return <span className="flex items-center gap-1.5"><Brain size={14} /> Thinking...</span>;
-      case "browsing": return <span className="flex items-center gap-1.5"><Globe size={14} /> Browsing Web...</span>;
-      case "asking": return <span className="flex items-center gap-1.5"><HelpCircle size={14} /> Awaiting input...</span>;
-      case "learning": return <span className="flex items-center gap-1.5"><Brain size={14} /> Learning site structure...</span>;
-      case "preparing": return <span className="flex items-center gap-1.5"><Settings size={14} /> Preparing checkout...</span>;
+      case "thinking": return <span className="flex items-center gap-1.5"><Brain size={14} /> Thinking & Reasoning...</span>;
+      case "browsing": return <span className="flex items-center gap-1.5"><Globe size={14} /> Browsing Real Webpage...</span>;
+      case "asking": return <span className="flex items-center gap-1.5"><HelpCircle size={14} /> Awaiting your choice / input...</span>;
+      case "learning": return <span className="flex items-center gap-1.5"><Brain size={14} /> Inspecting site structure...</span>;
+      case "preparing": return <span className="flex items-center gap-1.5"><Settings size={14} /> Preparing execution...</span>;
       case "waiting_approval": return <span className="flex items-center gap-1.5"><Hourglass size={14} /> Awaiting your approval...</span>;
-      case "recovering": return <span className="flex items-center gap-1.5"><RefreshCw size={14} /> Recovering from DOM drift...</span>;
+      case "recovering": return <span className="flex items-center gap-1.5"><RefreshCw size={14} /> Recovering...</span>;
       case "completed": return <span className="flex items-center gap-1.5"><CheckCircle size={14} /> Task completed!</span>;
       case "failed": return <span className="flex items-center gap-1.5"><XCircle size={14} /> Task failed.</span>;
       default: return <span className="flex items-center gap-1.5"><Sparkles size={14} /> Ready</span>;
     }
   };
 
-  const isViewportVisible = browserActive || (showLiveViewport && (status !== "idle" && status !== "completed" && status !== "failed"));
+  const isViewportVisible = browserActive || (showLiveViewport && (status !== "idle" && status !== "completed" && status !== "failed")) || screenshot !== null;
 
   return (
     <div className="flex-1 flex overflow-hidden h-screen bg-transparent">
@@ -279,7 +309,7 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
             <span className={`w-2.5 h-2.5 rounded-full ${status === "idle" ? "bg-slate-500" : status === "completed" ? "bg-emerald-500" : "bg-indigo-500 animate-ping"}`} />
             <div>
               <span className="text-xs font-bold text-slate-200 uppercase tracking-wider">{getStatusText()}</span>
-              {taskId && <p className="text-[9px] text-slate-500 font-mono mt-0.5">Session: {taskId.substring(0, 15)}...</p>}
+              {currentAction && <p className="text-[10px] text-indigo-400 font-medium mt-0.5">{currentAction}</p>}
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -291,7 +321,7 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
                 className="sr-only peer"
               />
               <div className="relative w-7 h-4 bg-slate-800 rounded-full peer peer-focus:ring-1 peer-focus:ring-indigo-500 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-slate-400 peer-checked:after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-indigo-600"></div>
-              <span className="text-[10px] font-bold text-slate-400 peer-checked:text-slate-200">Show live browser automation</span>
+              <span className="text-[10px] font-bold text-slate-400 peer-checked:text-slate-200">Live Viewport</span>
             </label>
             
             {status !== "idle" && (
@@ -328,6 +358,38 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
                   }`}
                 >
                   <p className="whitespace-pre-line">{msg.text}</p>
+
+                  {/* Interactive Options Cards */}
+                  {isAgent && msg.options && msg.options.length > 0 && (
+                    <div className="mt-4 space-y-2 border-t border-white/10 pt-3">
+                      <p className="text-[10px] uppercase font-bold text-indigo-400 tracking-wider">Recommended Options:</p>
+                      <div className="grid grid-cols-1 gap-2">
+                        {msg.options.map((opt) => (
+                          <button
+                            key={opt.id}
+                            disabled={isLoading}
+                            onClick={() => handleSelectOption(opt)}
+                            className="w-full text-left p-3 rounded-xl bg-slate-900/80 hover:bg-indigo-950/40 border border-white/10 hover:border-indigo-500/50 transition-all flex items-center justify-between gap-3 group"
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="w-5 h-5 rounded-full bg-indigo-600/30 text-indigo-400 border border-indigo-500/30 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
+                                  {opt.id}
+                                </span>
+                                <h5 className="font-bold text-slate-100 text-xs group-hover:text-indigo-300 transition-colors">{opt.title}</h5>
+                              </div>
+                              {opt.description && (
+                                <p className="text-[10px] text-slate-400 mt-1 ml-7">{opt.description}</p>
+                              )}
+                            </div>
+                            <ChevronRight size={16} className="text-slate-500 group-hover:text-indigo-400 transition-transform group-hover:translate-x-1" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Search Results List */}
                   {isAgent && msg.results && msg.results.length > 0 && (() => {
                     let filtered = msg.results.filter(res => {
                       if (activeFilter === "all") return true;
@@ -337,100 +399,51 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
                       return true;
                     });
                     
-                    const getPriceValue = (priceStr?: string) => {
-                      if (!priceStr) return 0;
-                      const clean = priceStr.replace(/[^0-9]/g, "");
-                      return clean ? parseInt(clean, 10) : 0;
-                    };
-                    
-                    if (sortOrder === "price_asc") {
-                      filtered = [...filtered].sort((a, b) => getPriceValue(a.price) - getPriceValue(b.price));
-                    } else if (sortOrder === "price_desc") {
-                      filtered = [...filtered].sort((a, b) => getPriceValue(b.price) - getPriceValue(a.price));
-                    }
-                    
                     return (
                       <div className="mt-4 space-y-3 border-t border-white/10 pt-3">
                         <div className="flex items-center justify-between flex-wrap gap-2">
-                          <p className="text-[10px] uppercase font-bold text-slate-450 tracking-wider">Search Results ({filtered.length}):</p>
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={activeFilter}
-                              onChange={(e) => setActiveFilter(e.target.value)}
-                              className="bg-slate-900 border border-white/10 text-[9px] text-slate-300 font-bold rounded px-1.5 py-0.5 outline-none cursor-pointer hover:border-slate-700 transition-all"
-                            >
-                              <option value="all">🔍 All Results</option>
-                              <option value="shopping">🛒 E-Commerce / Buy</option>
-                              <option value="job">💼 Jobs / Internships</option>
-                              <option value="event">📅 Webinars / Events</option>
-                            </select>
-                            
-                            {filtered.some(r => r.price) && (
-                              <select
-                                value={sortOrder}
-                                onChange={(e) => setSortOrder(e.target.value)}
-                                className="bg-slate-900 border border-white/10 text-[9px] text-slate-300 font-bold rounded px-1.5 py-0.5 outline-none cursor-pointer hover:border-slate-700 transition-all"
-                              >
-                                <option value="default">📊 Default Sort</option>
-                                <option value="price_asc">💵 Price: Low to High</option>
-                                <option value="price_desc">💵 Price: High to Low</option>
-                              </select>
-                            )}
-                          </div>
+                          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Direct Store & Action Links ({filtered.length}):</p>
                         </div>
                         
-                        {filtered.length === 0 ? (
-                          <p className="text-[10px] text-slate-500 italic text-center py-2">No results matching active filter.</p>
-                        ) : (
-                          <div className="grid grid-cols-1 gap-2.5">
-                            {filtered.map((res, rIdx) => (
-                              <div key={rIdx} className="bg-slate-950 border border-white/5 rounded-xl p-3 flex flex-col justify-between gap-3 hover:border-white/15 hover:shadow-[0_4px_12px_rgba(255,255,255,0.02)] transition-all duration-300">
-                                <div>
-                                  <div className="flex items-center justify-between gap-2">
-                                    <h4 className="font-bold text-white text-[11px] leading-tight line-clamp-1 flex-1">{res.title}</h4>
-                                    {res.type && (
-                                      <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider flex-shrink-0 ${
-                                        res.type === "shopping" ? "bg-emerald-950/45 text-emerald-400 border border-emerald-900/30" :
-                                        res.type === "job" ? "bg-indigo-950/45 text-indigo-400 border border-indigo-900/30" :
-                                        res.type === "event" ? "bg-amber-950/45 text-amber-400 border border-amber-900/30" :
-                                        "bg-slate-900 text-slate-400 border border-slate-800"
-                                      }`}>
-                                        {res.type}
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className="text-slate-400 text-[10px] mt-1 line-clamp-2">{res.description}</p>
-                                  
-                                  {(res.price || res.stipend || res.deadline || res.company || res.location) && (
-                                    <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-2.5 pt-2.5 border-t border-white/5 text-[9px]">
-                                      {res.company && <div className="text-slate-400 font-medium">🏢 <span className="text-slate-200 ml-1">{res.company}</span></div>}
-                                      {res.location && <div className="text-slate-400 font-medium">📍 <span className="text-slate-200 ml-1">{res.location}</span></div>}
-                                      {res.price && <div className="text-slate-400 font-extrabold text-emerald-400">💵 Price: <span className="text-emerald-350 font-extrabold ml-1">{res.price}</span></div>}
-                                      {res.stipend && <div className="text-slate-400 font-extrabold text-indigo-400">💰 Stipend: <span className="text-indigo-350 font-extrabold ml-1">{res.stipend}</span></div>}
-                                      {res.deadline && <div className="text-slate-400 font-extrabold text-amber-400">⏳ Deadline: <span className="text-amber-350 font-extrabold ml-1">{res.deadline}</span></div>}
-                                    </div>
+                        <div className="grid grid-cols-1 gap-2.5">
+                          {filtered.map((res, rIdx) => (
+                            <div key={rIdx} className="bg-slate-950 border border-white/5 rounded-xl p-3 flex flex-col justify-between gap-3 hover:border-white/15 hover:shadow-[0_4px_12px_rgba(255,255,255,0.02)] transition-all duration-300">
+                              <div>
+                                <div className="flex items-center justify-between gap-2">
+                                  <h4 className="font-bold text-white text-[11px] leading-tight line-clamp-1 flex-1">{res.title}</h4>
+                                  {res.type && (
+                                    <span className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider bg-emerald-950/45 text-emerald-400 border border-emerald-900/30">
+                                      {res.type}
+                                    </span>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-2 mt-1">
-                                  <a
-                                    href={res.url}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="glass-button px-2.5 py-1.5 text-[10px] text-slate-200 font-bold rounded-lg transition-all text-center flex-1 flex items-center justify-center gap-1.5"
-                                  >
-                                    <Globe size={12} /> View Website
-                                  </a>
-                                  <button
-                                    onClick={() => handleApply(res.title, res.url)}
-                                    className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-[10px] text-white font-extrabold rounded-lg transition-all text-center flex-1 flex items-center justify-center gap-1.5"
-                                  >
-                                    <Zap size={12} /> {res.url.includes("job") || res.url.includes("career") || res.url.includes("intern") || res.title.toLowerCase().includes("intern") ? "Apply via MOSAIC" : "Automate via MOSAIC"}
-                                  </button>
-                                </div>
+                                
+                                {(res.price || res.stipend || res.company || res.location) && (
+                                  <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 mt-2.5 pt-2.5 border-t border-white/5 text-[9px]">
+                                    {res.company && <div className="text-slate-400 font-medium">🏪 <span className="text-slate-200 ml-1">{res.company}</span></div>}
+                                    {res.price && <div className="text-slate-400 font-extrabold text-emerald-400">💵 Price: <span className="text-emerald-350 font-extrabold ml-1">{res.price}</span></div>}
+                                  </div>
+                                )}
                               </div>
-                            ))}
-                          </div>
-                        )}
+                              <div className="flex items-center gap-2 mt-1">
+                                <a
+                                  href={res.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="glass-button px-2.5 py-1.5 text-[10px] text-slate-200 font-bold rounded-lg transition-all text-center flex-1 flex items-center justify-center gap-1.5"
+                                >
+                                  <Globe size={12} /> View Web
+                                </a>
+                                <button
+                                  onClick={() => handleApply(res.title, res.url)}
+                                  className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-[10px] text-white font-extrabold rounded-lg transition-all text-center flex-1 flex items-center justify-center gap-1.5 shadow-[0_0_10px_rgba(99,102,241,0.3)]"
+                                >
+                                  <Zap size={12} /> Automate via MOSAIC
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     );
                   })()}
@@ -443,6 +456,33 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
           })}
           <div ref={messagesEndRef} />
         </div>
+
+        {/* Dedicated OTP Input Prompt */}
+        {status === "asking" && currentAction?.toLowerCase().includes("otp") && (
+          <div className="p-4 border-t border-indigo-500/30 bg-indigo-950/40 backdrop-blur-md">
+            <form onSubmit={handleOtpSubmit} className="flex gap-2 items-center">
+              <div className="flex items-center gap-2 text-indigo-300 font-bold text-xs flex-shrink-0">
+                <KeyRound size={16} /> Enter OTP:
+              </div>
+              <input
+                type="text"
+                placeholder="e.g. 583920"
+                value={otpInput}
+                onChange={(e) => setOtpInput(e.target.value)}
+                disabled={isLoading}
+                autoFocus
+                className="flex-1 px-4 py-2.5 rounded-xl bg-slate-900 border border-indigo-500/50 text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-indigo-400 text-xs font-mono tracking-widest text-center"
+              />
+              <button
+                type="submit"
+                disabled={isLoading || !otpInput.trim()}
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5"
+              >
+                Submit OTP <Check size={14} />
+              </button>
+            </form>
+          </div>
+        )}
 
         {/* Action Plan Approval Overlay */}
         {actionPlan && (
@@ -462,7 +502,7 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
                 <div><span className="text-slate-500">Shared Data:</span> {JSON.stringify(actionPlan.information_to_be_sent)}</div>
                 {actionPlan.risk_level === "HIGH_RISK" && (
                   <div className="text-rose-400 bg-rose-950/20 border border-rose-900/20 p-2 rounded mt-2 font-sans text-[10px] leading-relaxed">
-                    ⚠️ **Payment Rule Enforced:** MOSAIC does not automate final payments or request bank PINs. Complete the payment screen manually inside the browser.
+                    ⚠️ **Payment Safety Rule Enforced:** MOSAIC does not automate final payments or request bank PINs. Complete the payment screen manually inside the browser.
                   </div>
                 )}
               </div>
@@ -487,12 +527,12 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
           </div>
         )}
 
-        {/* Input box */}
+        {/* Regular Input box */}
         {!actionPlan && (
           <form onSubmit={handleSendMessage} className="p-4 border-t border-white/10 bg-black/20 backdrop-blur-md flex gap-2">
             <input
               type="text"
-              placeholder="Ask MOSAIC to find internships, compare tables, or register for events..."
+              placeholder="Ask MOSAIC: 'buy a good bengali book', 'recommend laptops', 'apply for jobs'..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
               disabled={isLoading}
@@ -514,12 +554,19 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
         <div className="w-1/2 bg-black/40 backdrop-blur-xl flex flex-col h-full border-l border-white/10">
           <div className="p-3 border-b border-white/10 flex items-center justify-between text-xs text-slate-300 font-bold bg-black/20">
             <div className="flex items-center gap-2 truncate pr-4">
-              <Globe size={16} className="text-emerald-400" />
-              <span className="font-mono text-[10px] truncate">{browserUrl || "Loading Page..."}</span>
+              <Globe size={16} className="text-emerald-400 flex-shrink-0" />
+              <span className="font-mono text-[10px] truncate">{browserUrl || "Live Browser Active"}</span>
             </div>
-            <span className="font-bold text-[9px] uppercase tracking-wider bg-slate-850 px-2 py-0.5 rounded text-slate-400">
-              Live Viewport
-            </span>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {currentAction && (
+                <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-indigo-950/60 text-indigo-300 border border-indigo-800/40">
+                  {currentAction}
+                </span>
+              )}
+              <span className="font-bold text-[9px] uppercase tracking-wider bg-slate-850 px-2 py-0.5 rounded text-slate-400">
+                Live Viewport
+              </span>
+            </div>
           </div>
 
           <div className="flex-1 bg-slate-950 flex items-center justify-center p-4 overflow-hidden relative">
@@ -527,13 +574,13 @@ export default function AgentChat({ email, setGlobalStatus }: AgentChatProps) {
               <img
                 src={screenshot}
                 alt="Live browser screenshot"
-                className="max-w-full max-h-full border border-slate-800 rounded-xl shadow-2xl object-contain select-none"
+                className="max-w-full max-h-full border border-slate-800 rounded-xl shadow-2xl object-contain select-none transition-all duration-300"
               />
             ) : (
               <div className="text-center space-y-3">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-indigo-500 mx-auto" />
-                <p className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">
-                  Attaching browser session...
+                <p className="text-slate-400 text-[11px] uppercase font-bold tracking-wider">
+                  Streaming Live Browser Automation...
                 </p>
               </div>
             )}

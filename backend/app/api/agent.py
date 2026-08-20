@@ -22,13 +22,15 @@ def chat_endpoint(
             task_id=res["task_id"],
             status=res["status"],
             response=res["response"],
-            clarification_needed=res["clarification_needed"],
-            action_plan_required=res["action_plan_required"],
+            clarification_needed=res.get("clarification_needed", False),
+            action_plan_required=res.get("action_plan_required", False),
             action_plan=res.get("action_plan"),
-            browser_active=res["browser_active"],
+            browser_active=res.get("browser_active", False),
             browser_url=res.get("browser_url"),
             screenshot=res.get("screenshot"),
-            results=res.get("results") or []
+            results=res.get("results") or [],
+            options=res.get("options") or [],
+            current_action=res.get("current_action")
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

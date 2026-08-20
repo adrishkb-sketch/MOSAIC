@@ -15,7 +15,10 @@ client = TestClient(app)
 def setup_db():
     Base.metadata.create_all(bind=engine)
     yield
-    Base.metadata.drop_all(bind=engine)
+    for table in reversed(Base.metadata.sorted_tables):
+        with engine.connect() as conn:
+            conn.execute(table.delete())
+            conn.commit()
 
 def test_agent_chat_and_approval_workflow():
     email = "agent_test@example.com"

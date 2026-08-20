@@ -14,7 +14,10 @@ client = TestClient(app)
 def setup_db():
     Base.metadata.create_all(bind=engine)
     yield
-    Base.metadata.drop_all(bind=engine)
+    for table in reversed(Base.metadata.sorted_tables):
+        with engine.connect() as conn:
+            conn.execute(table.delete())
+            conn.commit()
 
 def test_memory_api_lifecycle():
     email = "api_test@example.com"

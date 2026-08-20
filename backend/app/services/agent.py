@@ -4,13 +4,13 @@ import re
 from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 from app.db.models import UserActivity, ActionPlan, UserMemory
-from app.services.gemini import gemini_service, TaskIntent, TaskPlan, MissingInformation, ActionPlanSchema
+from app.services.gemini import gemini_service, TaskIntent, TaskPlan, MissingInformation, ActionPlanSchema, BroadQueryRecommendation, InteractiveOption
 from app.services.webcmd import webcmd_client
 from app.services.memory import memory_service
 from app.services.router import tool_router
 
 # In-memory store for active task sessions
-# Maps task_id -> { "session_id": str, "email": str, "request": str, "status": str, "current_url": str }
+# Maps task_id -> { "session_id": str, "email": str, "request": str, "status": str, "state": str, "current_url": str, "available_options": list, ... }
 active_sessions: Dict[str, Dict[str, Any]] = {}
 
 class AgentOrchestrator:
@@ -33,8 +33,13 @@ class AgentOrchestrator:
                 "email": email,
                 "request": message,
                 "status": "thinking",
+                "state": "idle",
                 "current_url": None,
-                "steps": []
+                "steps": [],
+                "available_options": [],
+                "pending_field": None,
+                "pending_input_selector": None,
+                "browser_active": False
             }
             
             # Create Audit Log in database
@@ -53,13 +58,14 @@ class AgentOrchestrator:
             db.commit()
         
         session = active_sessions[task_id]
-        
+        activity = db.query(UserActivity).filter(UserActivity.task_id == task_id).first()
+
         # Handle progressive profiling responses
         if session.get("pending_field"):
             pending_field = session.pop("pending_field")
             classification = "SENSITIVE_USER_DATA" if pending_field in ["name", "email", "phone", "address"] else "PRIVATE_USER_DATA"
             
-            # Clean up standard conversation filler words (e.g. "i know python" -> "python")
+            # Clean up standard conversation filler words
             cleaned_val = message
             if pending_field == "skills":
                 match = re.search(r'(?:i know|my skills are|skills are|skills:)\s*(.*)', message, re.IGNORECASE)
@@ -84,7 +90,7 @@ class AgentOrchestrator:
             "action": "user_message",
             "description": f"User: {message}"
         })
-        
+
         # 2. Check for Approval Responses
         if message == "proceed_execution":
             return self._execute_approved_plan(db, task_id)
@@ -96,8 +102,6 @@ class AgentOrchestrator:
         profile_data = {m.key: m.value for m in memories}
         used_keys = [m.key for m in memories]
 
-        # Log memory usage for transparency
-        activity = db.query(UserActivity).filter(UserActivity.task_id == task_id).first()
         if activity:
             activity.information_used = json.dumps(used_keys)
             db.commit()
@@ -108,37 +112,10 @@ class AgentOrchestrator:
                 memory_id=m.id,
                 task_id=task_id,
                 task_description=session["request"],
-                website=session["current_url"]
+                website=session.get("current_url")
             )
 
-        # 4. Classify Intent & Check for Missing Information
-        # If Gemini is configured, use it. Otherwise, use deterministic fallbacks for hackathon demo.
-        if gemini_service.is_configured():
-            try:
-                intent: TaskIntent = gemini_service.classify_intent(session["request"])
-                missing: MissingInformation = gemini_service.identify_missing_info(session["request"], profile_data)
-                
-                # If crucial info is missing, ask clarification questions
-                if missing.missing_fields:
-                    session["status"] = "asking"
-                    session["pending_field"] = missing.missing_fields[0]
-                    if activity:
-                        activity.status = "asking"
-                        db.commit()
-                    return {
-                        "task_id": task_id,
-                        "status": "asking",
-                        "response": missing.questions[0] if missing.questions else f"Could you please tell me your {missing.missing_fields[0]}?",
-                        "clarification_needed": True,
-                        "action_plan_required": False,
-                        "browser_active": False
-                    }
-            except Exception as e:
-                # Fallback on Gemini errors
-                print(f"Warning: Gemini intent check failed: {e}")
-                
-        # Simple local progressive profiling logic:
-        # If the task description includes "internship" and we don't have skills or name, ask for them.
+        # 4. Progressive Profiling for Crucial Fields (e.g. internships require skills and name)
         if "internship" in session["request"].lower():
             if not profile_data.get("skills"):
                 session["status"] = "asking"
@@ -149,7 +126,7 @@ class AgentOrchestrator:
                 return {
                     "task_id": task_id,
                     "status": "asking",
-                    "response": "I see you want to find software internships. What programming skills or tech stack should I filter for?",
+                    "response": "I see you want to find software engineering internships. What programming skills or tech stack should I filter for?",
                     "clarification_needed": True,
                     "action_plan_required": False,
                     "browser_active": False
@@ -169,75 +146,680 @@ class AgentOrchestrator:
                     "browser_active": False
                 }
 
-        # Check for direct action/apply click
-        if message.startswith("apply_for:"):
-            target_url = message.split("apply_for:")[1].strip()
+        # 5. Handle State: Awaiting User Choice (Interactive Options Selection)
+        if session.get("state") == "awaiting_user_choice" and session.get("available_options"):
+            options = session.pop("available_options", [])
+            session["state"] = "idle"
             
-            # Formulate goal dynamically based on original request
-            orig_req = session.get("request", "").lower()
-            if any(w in orig_req for w in ["buy", "shop", "purchase", "refrigerator", "fridge", "laptop", "table", "product", "price"]):
-                session["request"] = f"Automate purchase/checkout for product at {target_url}"
-            elif any(w in orig_req for w in ["register", "webinar", "event", "sign up", "join", "attend", "conference", "summit", "meetup", "seminar"]):
-                session["request"] = f"Register for event/webinar at {target_url}"
-            else:
-                session["request"] = f"Apply for internship/job at {target_url}"
-                
-            session["status"] = "browsing"
+            selected_option = None
+            msg_clean = message.strip().lower()
             
-            # Always close the previous search session and start a fresh one for the target website automation
-            if session.get("session_id"):
-                try:
-                    webcmd_client.close_session(session["session_id"])
-                except Exception:
-                    pass
-            session["session_id"] = webcmd_client.create_session()
+            # Check numeric index or title match
+            for idx, opt in enumerate(options):
+                opt_id = str(opt.get("id", idx + 1)).lower()
+                opt_title = opt.get("title", "").lower()
+                if msg_clean == opt_id or f"option {opt_id}" in msg_clean or opt_title in msg_clean or any(word in msg_clean for word in opt_title.split() if len(word) > 3):
+                    selected_option = opt
+                    break
+                    
+            if not selected_option and options:
+                if msg_clean in ["1", "first", "first one", "yes", "sure"]:
+                    selected_option = options[0]
+                elif len(options) > 1 and msg_clean in ["2", "second", "second one"]:
+                    selected_option = options[1]
+                elif len(options) > 2 and msg_clean in ["3", "third", "third one"]:
+                    selected_option = options[2]
+                else:
+                    selected_option = options[0]
+
+            if selected_option:
+                if selected_option.get("url"):
+                    return self._start_live_site_automation(db, task_id, selected_option["url"], profile_data)
+                elif selected_option.get("selector") and session.get("session_id"):
+                    webcmd_client.click_element(session["session_id"], selector=selected_option["selector"])
+                    return self._run_live_site_orchestration(db, task_id, profile_data)
+                else:
+                    chosen_title = selected_option.get("title", message)
+                    session["request"] = f"Buy or search for {chosen_title}"
+                    return self._run_search_orchestration(db, task_id, session["request"], profile_data)
+
+        # 6. Handle State: Awaiting OTP Input
+        if session.get("state") == "awaiting_otp" and session.get("pending_input_selector") and session.get("session_id"):
+            selector = session.pop("pending_input_selector")
+            session["state"] = "idle"
             
-            session_id = session["session_id"]
-            session["current_url"] = target_url
+            otp_val = "".join(re.findall(r'\d+', message)) or message.strip()
+            webcmd_client.fill_element(session["session_id"], selector, otp_val)
+            webcmd_client.click_element(session["session_id"], text="verify") or webcmd_client.click_element(session["session_id"], text="submit") or webcmd_client.click_element(session["session_id"], text="continue")
             
-            # Save activity state
-            activity = db.query(UserActivity).filter(UserActivity.task_id == task_id).first()
+            import time
+            time.sleep(2)
+            
+            session["steps"].append({
+                "action": "fill_otp",
+                "description": f"Filled user verification OTP into '{selector}'"
+            })
+            
+            return self._run_live_site_orchestration(db, task_id, profile_data)
+
+        # 7. Check for Direct "Automate / Apply via MOSAIC" Button Clicks
+        if message.startswith("apply_for:") or message.startswith("automate_for:"):
+            target_url = message.split(":", 1)[1].strip()
+            return self._start_live_site_automation(db, task_id, target_url, profile_data)
+
+        # 7b. ACTIVE BROWSER SESSION ROUTING: If browser is already active on a website, process instruction directly on active page
+        if session.get("browser_active") and session.get("session_id"):
+            return self._run_live_site_orchestration(db, task_id, profile_data, user_instruction=message)
+
+        # 8. Analyze Broad Recommendations vs Direct Search
+        is_broad = False
+        recommendations_summary = ""
+        suggested_options = []
+
+        if gemini_service.is_configured():
+            try:
+                analysis: BroadQueryRecommendation = gemini_service.analyze_query_or_recommend(session["request"], profile_data)
+                if analysis.is_broad_query and analysis.suggested_options:
+                    is_broad = True
+                    recommendations_summary = analysis.recommendations_summary
+                    suggested_options = [
+                        {"id": str(opt.id), "title": opt.title, "description": opt.description or "", "url": opt.url, "selector": opt.selector}
+                        for opt in analysis.suggested_options
+                    ]
+            except Exception as e:
+                print(f"Gemini query analysis failed: {e}")
+
+        # Local fallback heuristic for broad discovery
+        if not is_broad:
+            lower_req = session["request"].lower()
+            if any(k in lower_req for k in ["good bengali book", "bengali book", "bengali books", "recommend book", "suggest book"]):
+                is_broad = True
+                recommendations_summary = "Bengali literature has rich masterpieces across mystery, classics, and adventure. Here are 4 top-rated Bengali classics with high seller availability. Which one would you like to explore?"
+                suggested_options = [
+                    {"id": "1", "title": "Byomkesh Bakshi Samagra", "description": "Classic detective sleuth mysteries by Sharadindu Bandyopadhyay"},
+                    {"id": "2", "title": "Feluda Samagra (Volume 1 & 2)", "description": "Iconic Kolkata detective adventures by Satyajit Ray"},
+                    {"id": "3", "title": "Pather Panchali (Song of the Road)", "description": "Epic timeless literary classic by Bibhutibhushan Bandyopadhyay"},
+                    {"id": "4", "title": "Shesher Kobita", "description": "Famous poetic romance novel by Rabindranath Tagore"}
+                ]
+
+        if is_broad and suggested_options:
+            session["status"] = "asking"
+            session["state"] = "awaiting_user_choice"
+            session["available_options"] = suggested_options
             if activity:
-                activity.status = "browsing"
+                activity.status = "asking"
                 db.commit()
-                
-            # Navigate to target URL immediately
-            webcmd_client.run_script(session_id, f'await page.goto("{target_url}", {{ waitUntil: "domcontentloaded", timeout: 10000 }});')
-            webcmd_client.run_script(session_id, 'await page.waitForTimeout(2000);')
-            
-            return self._run_browser_orchestration(db, task_id, f"Fill out application form on {target_url}", profile_data)
-            
-        # Check if the query is a search query
-        is_search_query = any(w in session["request"].lower() for w in ["find", "search", "lookup", "gather", "collect", "internship", "buy", "want", "get", "shop", "need", "refrigerator", "fridge", "purchase", "price", "laptop", "table", "product"]) and not "apply" in message.lower()
+
+            return {
+                "task_id": task_id,
+                "status": "asking",
+                "response": recommendations_summary,
+                "clarification_needed": True,
+                "action_plan_required": False,
+                "browser_active": False,
+                "options": suggested_options,
+                "current_action": "Awaiting your selection"
+            }
+
+        # 9. Search Queries
+        is_search_query = any(w in session["request"].lower() for w in ["find", "search", "lookup", "gather", "collect", "internship", "buy", "want", "get", "shop", "need", "purchase", "price", "laptop", "table", "book", "product"])
         
         if is_search_query:
-            if not session.get("session_id"):
-                session["session_id"] = webcmd_client.create_session()
             return self._run_search_orchestration(db, task_id, session["request"], profile_data)
 
-        # 5. Launch Browser Session if needed (Fallback general browsing)
-        need_browser = any(w in session["request"].lower() for w in ["find", "search", "table", "internship", "buy", "register", "apply", "hotel", "trip"])
-        
-        if need_browser and not session["session_id"]:
-            session["session_id"] = webcmd_client.create_session()
-            session["status"] = "browsing"
-            if activity:
-                activity.status = "browsing"
-                db.commit()
-
-        # 6. Execute safe research/comparison (Milestone 3 & 6)
-        if session["session_id"]:
-            return self._run_browser_orchestration(db, task_id, message, profile_data)
-
-        # Chat response fallback
+        # 10. General Chat Fallback
         return {
             "task_id": task_id,
             "status": "completed",
-            "response": f"I analyzed your request. Please let me know how I can help with browsing or mapping files.",
+            "response": "I analyzed your request. You can ask me to search for books, compare laptops, or automate applications.",
             "clarification_needed": False,
             "action_plan_required": False,
             "browser_active": False
         }
+
+    def _start_live_site_automation(
+        self,
+        db: Session,
+        task_id: str,
+        target_url: str,
+        profile_data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Initializes a fresh live webcmd session, navigates to the target website,
+        and begins step-by-step browser orchestration.
+        """
+        session = active_sessions[task_id]
+        
+        if session.get("session_id"):
+            try:
+                webcmd_client.close_session(session["session_id"])
+            except Exception:
+                pass
+
+        session["session_id"] = webcmd_client.create_session()
+        session["current_url"] = target_url
+        session["status"] = "browsing"
+        session["browser_active"] = True
+
+        activity = db.query(UserActivity).filter(UserActivity.task_id == task_id).first()
+        if activity:
+            activity.status = "browsing"
+            db.commit()
+
+        # Navigate to target URL
+        webcmd_client.navigate_to(session["session_id"], target_url)
+        
+        session["steps"].append({
+            "action": "navigate",
+            "description": f"Opened live browser to {target_url}"
+        })
+
+        return self._run_live_site_orchestration(db, task_id, profile_data)
+
+    def _run_live_site_orchestration(
+        self,
+        db: Session,
+        task_id: str,
+        profile_data: Dict[str, Any],
+        user_instruction: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Multi-turn live page inspector and actuator using Webcmd and Gemini.
+        Evaluates real page structure, queries Gemini at each step to determine next action,
+        handles sorting, filtering, catalog selections, OTPs, form filling,
+        and creates ActionPlans with payment safety boundaries.
+        """
+        session = active_sessions[task_id]
+        session_id = session["session_id"]
+        activity = db.query(UserActivity).filter(UserActivity.task_id == task_id).first()
+
+        # 1. Capture live page state
+        page_info = webcmd_client.extract_page_details(session_id)
+        current_url = page_info.get("url") or session.get("current_url") or "https://www.google.com"
+        session["current_url"] = current_url
+        act_snapshot = webcmd_client.get_accessibility_snapshot(session_id)
+        screenshot = webcmd_client.get_screenshot(session_id)
+
+        # 2. Strict Payment / Checkout Safety Boundary Check
+        if page_info.get("is_payment_screen"):
+            session["status"] = "waiting_approval"
+            session["state"] = "payment_paused"
+            if activity:
+                activity.status = "waiting_approval"
+                db.commit()
+
+            plan = ActionPlan(
+                task_id=task_id,
+                user_id=session["email"],
+                goal=f"Checkout on {current_url.split('/')[2] if '//' in current_url else 'website'}",
+                website=current_url.split('/')[2] if '//' in current_url else "checkout",
+                actions=json.dumps([
+                    {"action_type": "navigate", "description": "Loaded checkout page"},
+                    {"action_type": "fill", "description": "Filled shipping details from profile"}
+                ]),
+                information_to_be_sent=json.dumps({
+                    "name": profile_data.get("name", "User"),
+                    "address": profile_data.get("address", "User Address")
+                }),
+                risk_level="HIGH_RISK",
+                approval_required=True,
+                approval_status="pending",
+                final_action="Complete payment manually in browser"
+            )
+            db.add(plan)
+            db.commit()
+
+            return {
+                "task_id": task_id,
+                "status": "waiting_approval",
+                "response": "⚠️ **Payment Safety Boundary Reached**: MOSAIC has navigated to the checkout page and loaded your order. For strict security, MOSAIC does not automate financial transactions or handle bank PINs/CVVs. Please complete the final payment manually in the browser viewport.",
+                "clarification_needed": False,
+                "action_plan_required": True,
+                "action_plan": {
+                    "goal": plan.goal,
+                    "website": plan.website,
+                    "actions": json.loads(plan.actions),
+                    "information_to_be_sent": json.loads(plan.information_to_be_sent),
+                    "risk_level": plan.risk_level
+                },
+                "browser_active": True,
+                "browser_url": current_url,
+                "screenshot": screenshot,
+                "current_action": "🔒 Payment Safety Boundary Active"
+            }
+
+        # 3. OTP / Verification Code Screen
+        if page_info.get("is_otp_screen"):
+            otp_input = next((inp for inp in page_info.get("inputs", []) if any(k in inp.get("name", "").lower() or k in inp.get("id", "").lower() or k in inp.get("placeholder", "").lower() for k in ["otp", "code", "pin", "verification"])), None)
+            selector = otp_input.get("selector") if otp_input else "input[type='text'], input[type='number'], input[type='tel']"
+
+            session["status"] = "asking"
+            session["state"] = "awaiting_otp"
+            session["pending_input_selector"] = selector
+            if activity:
+                activity.status = "asking"
+                db.commit()
+
+            return {
+                "task_id": task_id,
+                "status": "asking",
+                "response": "🔐 The website is requesting an **Authentication OTP / Verification Code** sent to your phone or email. Please enter the OTP in the chat below to continue:",
+                "clarification_needed": True,
+                "action_plan_required": False,
+                "browser_active": True,
+                "browser_url": current_url,
+                "screenshot": screenshot,
+                "current_action": "🔑 Awaiting OTP / 2FA Code"
+            }
+
+        # 4. Ask Gemini for the Next Browser Action (if configured)
+        if gemini_service.is_configured():
+            try:
+                action_decision = gemini_service.determine_next_browser_action(
+                    goal=session.get("request", ""),
+                    current_url=current_url,
+                    page_snapshot=act_snapshot or str(page_info),
+                    user_profile=profile_data,
+                    execution_history=session.get("steps", []),
+                    user_instruction=user_instruction
+                )
+
+                if action_decision:
+                    session["steps"].append({
+                        "action": action_decision.action_type,
+                        "description": f"Gemini decision: {action_decision.thought}"
+                    })
+
+                    # Handle Payment Boundary
+                    if action_decision.action_type == "payment_boundary":
+                        session["status"] = "waiting_approval"
+                        session["state"] = "payment_paused"
+                        if activity:
+                            activity.status = "waiting_approval"
+                            db.commit()
+                        return {
+                            "task_id": task_id,
+                            "status": "waiting_approval",
+                            "response": "⚠️ **Payment Safety Boundary Reached**: MOSAIC has prepared the checkout page. Please complete payment manually in the browser viewport.",
+                            "clarification_needed": False,
+                            "action_plan_required": True,
+                            "action_plan": {
+                                "goal": "Manual Payment",
+                                "website": current_url.split('/')[2] if '//' in current_url else "checkout",
+                                "actions": [{"action_type": "payment_boundary", "description": "Manual payment required"}],
+                                "information_to_be_sent": {},
+                                "risk_level": "HIGH_RISK"
+                            },
+                            "browser_active": True,
+                            "browser_url": current_url,
+                            "screenshot": screenshot,
+                            "current_action": "🔒 Payment Boundary"
+                        }
+
+                    # Handle Ask User Choice
+                    if action_decision.action_type == "ask_user_choice" and action_decision.options:
+                        formatted_options = [
+                            {
+                                "id": str(opt.id),
+                                "title": opt.title,
+                                "description": opt.description or "",
+                                "url": opt.url,
+                                "selector": opt.selector
+                            }
+                            for opt in action_decision.options
+                        ]
+                        session["status"] = "asking"
+                        session["state"] = "awaiting_user_choice"
+                        session["available_options"] = formatted_options
+                        if activity:
+                            activity.status = "asking"
+                            db.commit()
+                        return {
+                            "task_id": task_id,
+                            "status": "asking",
+                            "response": action_decision.thought or "Here are the matching options on the page:",
+                            "clarification_needed": True,
+                            "action_plan_required": False,
+                            "browser_active": True,
+                            "browser_url": current_url,
+                            "screenshot": screenshot,
+                            "options": formatted_options,
+                            "current_action": "Awaiting your selection"
+                        }
+
+                    # Handle Click (e.g. sorting, filtering, product click)
+                    if action_decision.action_type == "click":
+                        clicked = False
+                        if action_decision.selector:
+                            clicked = webcmd_client.click_element(session_id, selector=action_decision.selector)
+                        if not clicked and action_decision.click_text:
+                            clicked = webcmd_client.click_element(session_id, text=action_decision.click_text)
+                        
+                        import time
+                        time.sleep(2)
+                        screenshot = webcmd_client.get_screenshot(session_id) or screenshot
+
+                        # Check if this was a sort/filter action and re-extract catalog options if available
+                        new_page_info = webcmd_client.extract_page_details(session_id)
+                        new_items = new_page_info.get("items", [])
+                        options_to_show = []
+                        if new_items:
+                            options_to_show = [
+                                {
+                                    "id": str(i + 1),
+                                    "title": item["title"],
+                                    "description": f"Price: {item.get('price', 'Check on page')}",
+                                    "url": item.get("url"),
+                                    "selector": item.get("selector")
+                                }
+                                for i, item in enumerate(new_items[:4])
+                            ]
+                            session["status"] = "asking"
+                            session["state"] = "awaiting_user_choice"
+                            session["available_options"] = options_to_show
+
+                        return {
+                            "task_id": task_id,
+                            "status": session["status"],
+                            "response": f"✓ {action_decision.thought}",
+                            "clarification_needed": bool(options_to_show),
+                            "action_plan_required": False,
+                            "browser_active": True,
+                            "browser_url": session["current_url"],
+                            "screenshot": screenshot,
+                            "options": options_to_show if options_to_show else None,
+                            "current_action": "Updated browser view"
+                        }
+
+                    # Handle Fill (e.g. searching on the portal or filling form)
+                    if action_decision.action_type == "fill" and action_decision.selector and action_decision.value:
+                        webcmd_client.fill_element(
+                            session_id,
+                            action_decision.selector,
+                            action_decision.value,
+                            press_enter=bool(action_decision.press_enter)
+                        )
+                        import time
+                        time.sleep(2)
+                        screenshot = webcmd_client.get_screenshot(session_id) or screenshot
+                        return {
+                            "task_id": task_id,
+                            "status": "browsing",
+                            "response": f"✓ {action_decision.thought}",
+                            "clarification_needed": False,
+                            "action_plan_required": False,
+                            "browser_active": True,
+                            "browser_url": session["current_url"],
+                            "screenshot": screenshot,
+                            "current_action": f"Filled '{action_decision.value}'"
+                        }
+
+                    # Handle Submit Form Approval
+                    if action_decision.action_type == "submit_form_approval":
+                        plan = ActionPlan(
+                            task_id=task_id,
+                            user_id=session["email"],
+                            goal=f"Submit Form on {current_url.split('/')[2] if '//' in current_url else 'website'}",
+                            website=current_url.split("/")[2] if "//" in current_url else "website",
+                            actions=json.dumps([{"action_type": "submit", "description": action_decision.thought}]),
+                            information_to_be_sent=json.dumps(profile_data),
+                            risk_level="CONSEQUENTIAL",
+                            approval_required=True,
+                            approval_status="pending",
+                            final_action="submit form"
+                        )
+                        db.add(plan)
+                        db.commit()
+                        session["status"] = "waiting_approval"
+                        if activity:
+                            activity.status = "waiting_approval"
+                            db.commit()
+                        return {
+                            "task_id": task_id,
+                            "status": "waiting_approval",
+                            "response": action_decision.thought or "Please review the mapped details and approve the submission.",
+                            "clarification_needed": False,
+                            "action_plan_required": True,
+                            "action_plan": {
+                                "goal": plan.goal,
+                                "website": plan.website,
+                                "actions": json.loads(plan.actions),
+                                "information_to_be_sent": json.loads(plan.information_to_be_sent),
+                                "risk_level": plan.risk_level
+                            },
+                            "browser_active": True,
+                            "browser_url": current_url,
+                            "screenshot": screenshot,
+                            "current_action": "Awaiting form approval"
+                        }
+
+                    # Handle Complete
+                    if action_decision.action_type == "complete":
+                        return {
+                            "task_id": task_id,
+                            "status": "completed",
+                            "response": action_decision.final_summary or action_decision.thought,
+                            "clarification_needed": False,
+                            "action_plan_required": False,
+                            "browser_active": True,
+                            "browser_url": current_url,
+                            "screenshot": screenshot,
+                            "current_action": "Task Completed"
+                        }
+            except Exception as e:
+                print(f"Gemini determine_next_browser_action failed: {e}")
+
+        # 5. Deterministic Local Fallback (when Gemini offline or heuristic matching)
+        instruction_lower = (user_instruction or "").lower()
+
+        # Handle sort / filter by cheapest or low price
+        if any(k in instruction_lower for k in ["cheapest", "low to high", "lowest price", "lowest", "cheaper", "sort", "filter"]):
+            sort_clicked = False
+            
+            # 1. Direct Portal Query Navigation for robust sorting across AJAX/React re-renders
+            if "flipkart.com" in current_url and "sort=price_asc" not in current_url:
+                new_url = current_url + ("&sort=price_asc" if "?" in current_url else "?sort=price_asc")
+                session["current_url"] = new_url
+                webcmd_client.navigate_to(session_id, new_url)
+                sort_clicked = True
+            elif "amazon." in current_url and "s=price-asc-rank" not in current_url:
+                new_url = current_url + ("&s=price-asc-rank" if "?" in current_url else "?s=price-asc-rank")
+                session["current_url"] = new_url
+                webcmd_client.navigate_to(session_id, new_url)
+                sort_clicked = True
+            else:
+                # 2. Click sort tabs or dropdown elements
+                sort_clicked = (
+                    webcmd_client.click_element(session_id, text="Price -- Low to High") or
+                    webcmd_client.click_element(session_id, text="Price: Low to High") or
+                    webcmd_client.click_element(session_id, text="Low to High") or
+                    webcmd_client.click_element(session_id, selector="div._10UF8M") or
+                    webcmd_client.click_element(session_id, selector="div.sHCOk2") or
+                    webcmd_client.click_element(session_id, selector="li[data-id*='price_asc']") or
+                    webcmd_client.click_element(session_id, text="Price")
+                )
+
+            import time
+            time.sleep(2.5)
+
+            # Capture fresh state after sorting
+            page_info = webcmd_client.extract_page_details(session_id)
+            current_url = page_info.get("url") or session["current_url"]
+            session["current_url"] = current_url
+            screenshot = webcmd_client.get_screenshot(session_id) or screenshot
+            items = page_info.get("items", [])
+
+            def parse_price(price_str):
+                digits = re.findall(r'\d+', price_str or "")
+                return int("".join(digits)) if digits else 999999
+
+            sorted_items = sorted(items, key=lambda x: parse_price(x.get("price", ""))) if items else []
+            formatted_options = [
+                {
+                    "id": str(i + 1),
+                    "title": item["title"],
+                    "description": f"Price: {item.get('price', 'Check on page')}",
+                    "url": item.get("url"),
+                    "selector": item.get("selector")
+                }
+                for i, item in enumerate((sorted_items or items)[:4])
+            ]
+
+            session["status"] = "asking"
+            session["state"] = "awaiting_user_choice"
+            session["available_options"] = formatted_options
+            if activity:
+                activity.status = "asking"
+                db.commit()
+
+            domain_name = current_url.split('/')[2].replace('www.', '') if '//' in current_url else 'the portal'
+            cheapest_msg = f"✓ I sorted the catalog on **{domain_name}** by **Price: Low to High** and updated your live browser preview on the right. Here are the cheapest options found on the portal:"
+            return {
+                "task_id": task_id,
+                "status": "asking",
+                "response": cheapest_msg,
+                "clarification_needed": True,
+                "action_plan_required": False,
+                "browser_active": True,
+                "browser_url": current_url,
+                "screenshot": screenshot,
+                "options": formatted_options,
+                "current_action": "Filtered by cheapest (Price: Low to High)"
+            }
+
+
+        # Handle Catalog items
+        items = page_info.get("items", [])
+        if len(items) > 1 and "item_selected" not in session and "apply" not in session.get("request", "").lower():
+            formatted_options = [
+                {
+                    "id": str(i + 1),
+                    "title": item["title"],
+                    "description": f"Price: {item.get('price', 'Check on page')}",
+                    "url": item.get("url"),
+                    "selector": item.get("selector")
+                }
+                for i, item in enumerate(items[:4])
+            ]
+            
+            session["status"] = "asking"
+            session["state"] = "awaiting_user_choice"
+            session["available_options"] = formatted_options
+            if activity:
+                activity.status = "asking"
+                db.commit()
+
+            return {
+                "task_id": task_id,
+                "status": "asking",
+                "response": f"I have opened the catalog page on **{current_url.split('/')[2] if '//' in current_url else 'the website'}**. I found {len(formatted_options)} matching options visible on the page. Which one would you like me to select and proceed with?",
+                "clarification_needed": True,
+                "action_plan_required": False,
+                "browser_active": True,
+                "browser_url": current_url,
+                "screenshot": screenshot,
+                "options": formatted_options,
+                "current_action": "📦 Awaiting item selection"
+            }
+
+        # Form Fill & Application Action Plan Creation
+        orig_req = session.get("request", "").lower()
+        if "apply" in orig_req or "intern" in orig_req or "job" in orig_req or "register" in orig_req or "form" in orig_req:
+            for inp in page_info.get("inputs", []):
+                iname = (inp.get("name", "") + " " + inp.get("id", "") + " " + inp.get("placeholder", "")).lower()
+                sel = inp["selector"]
+                if "name" in iname and profile_data.get("name"):
+                    webcmd_client.fill_element(session_id, sel, profile_data["name"])
+                elif "email" in iname and profile_data.get("email"):
+                    webcmd_client.fill_element(session_id, sel, profile_data["email"])
+                elif "skill" in iname and profile_data.get("skills"):
+                    webcmd_client.fill_element(session_id, sel, profile_data["skills"])
+
+            screenshot = webcmd_client.get_screenshot(session_id) or screenshot
+
+            plan = ActionPlan(
+                task_id=task_id,
+                user_id=session["email"],
+                goal=f"Submit Application / Details on {current_url.split('/')[2] if '//' in current_url else 'website'}",
+                website=current_url.split("/")[2] if "//" in current_url else "website",
+                actions=json.dumps([
+                    {"action_type": "fill", "description": "Fill name field", "selector": "#name", "value": profile_data.get("name", "User")},
+                    {"action_type": "fill", "description": "Fill email field", "selector": "#email", "value": profile_data.get("email", "user@example.com")},
+                    {"action_type": "fill", "description": "Fill profile/skills field", "selector": "#skills", "value": profile_data.get("skills", "Python")}
+                ]),
+                information_to_be_sent=json.dumps({
+                    "name": profile_data.get("name", "User"),
+                    "email": profile_data.get("email", "user@example.com"),
+                    "skills": profile_data.get("skills", "Python")
+                }),
+                risk_level="CONSEQUENTIAL",
+                approval_required=True,
+                approval_status="pending",
+                final_action="click submit button"
+            )
+            db.add(plan)
+            db.commit()
+
+            session["status"] = "waiting_approval"
+            if activity:
+                activity.status = "waiting_approval"
+                activity.steps = json.dumps(session["steps"])
+                db.commit()
+
+            return {
+                "task_id": task_id,
+                "status": "waiting_approval",
+                "response": "I have navigated to the application page and mapped your profile details into the form. Please review the live form in the viewport on the right and check the details below before clicking Approve.",
+                "clarification_needed": False,
+                "action_plan_required": True,
+                "action_plan": {
+                    "goal": plan.goal,
+                    "website": plan.website,
+                    "actions": json.loads(plan.actions),
+                    "information_to_be_sent": json.loads(plan.information_to_be_sent),
+                    "risk_level": plan.risk_level
+                },
+                "browser_active": True,
+                "browser_url": current_url,
+                "screenshot": screenshot,
+                "current_action": "Awaiting approval to submit"
+            }
+
+        # Product Detail Page: Try to click "Buy Now" or "Add to Cart"
+        buy_clicked = (
+            webcmd_client.click_element(session_id, selector="#buy-now-button") or
+            webcmd_client.click_element(session_id, selector="#add-to-cart-button") or
+            webcmd_client.click_element(session_id, text="buy now") or
+            webcmd_client.click_element(session_id, text="add to cart") or
+            webcmd_client.click_element(session_id, text="proceed to checkout")
+        )
+
+        if buy_clicked:
+            session["item_selected"] = True
+            import time
+            time.sleep(2)
+            
+            session["steps"].append({
+                "action": "click_buy_now",
+                "description": "Clicked 'Buy Now / Add to Cart' button on product page"
+            })
+            
+            return self._run_live_site_orchestration(db, task_id, profile_data)
+
+        # Default fallback view
+        screenshot = webcmd_client.get_screenshot(session_id) or screenshot
+        return {
+            "task_id": task_id,
+            "status": "browsing",
+            "response": f"Currently on **{page_info.get('title') or current_url}**. You can view the live browser viewport on the right, or tell me what action you'd like to perform next.",
+            "clarification_needed": False,
+            "action_plan_required": False,
+            "browser_active": True,
+            "browser_url": current_url,
+            "screenshot": screenshot,
+            "current_action": "Browsing page"
+        }
+
 
     def _run_search_orchestration(
         self,
@@ -247,35 +829,24 @@ class AgentOrchestrator:
         profile_data: Dict[str, Any]
     ) -> Dict[str, Any]:
         session = active_sessions[task_id]
+        if not session.get("session_id"):
+            session["session_id"] = webcmd_client.create_session()
         session_id = session["session_id"]
         
-        # Navigate to Google Search or relevant portals
         search_query = query
         if "internship" in query.lower() and "skills" in profile_data:
-            # enhance search query using profile skills if searching for internships
             skills = profile_data.get("skills", "")
             address = profile_data.get("address", "")
             search_query = f"{query} {skills} {address}".strip()
             
         search_url = f"https://www.google.com/search?q={search_query.replace(' ', '+')}"
         session["current_url"] = search_url
+        session["browser_active"] = False
         
-        # Go to Google and handle cookie consent if present
-        navigation_script = f"""
-        await page.goto("{search_url}", {{ waitUntil: 'domcontentloaded', timeout: 10000 }});
-        await page.waitForTimeout(2000);
-        await page.evaluate(() => {{
-            const btn = Array.from(document.querySelectorAll('button')).find(b => {{
-                const txt = b.innerText.trim().toLowerCase();
-                return txt.includes('accept all') || txt.includes('i agree') || txt.includes('agree') || txt.includes('consent');
-            }});
-            if (btn) btn.click();
-        }});
-        await page.waitForTimeout(2000);
-        """
-        webcmd_client.run_script(session_id, navigation_script)
+        # Navigate to Google Search
+        webcmd_client.navigate_to(session_id, search_url)
         
-        # Scrape links from the search page
+        # Scrape links from search page
         scrape_script = """
         return await page.evaluate(() => {
             const results = [];
@@ -297,45 +868,17 @@ class AgentOrchestrator:
         raw_results = []
         res = webcmd_client.run_script(session_id, scrape_script)
         if res.get("ok"):
-            raw_results = res["result"] or []
+            raw_results = res.get("result") or []
             
-        # Parse and format results
         search_items = []
         summary = ""
         
-        is_job_query = any(w in query.lower() for w in ["job", "intern", "career", "work", "position", "recruit"])
-        is_shopping_query = any(w in query.lower() for w in ["buy", "price", "shop", "purchase", "store", "refrigerator", "fridge", "laptop", "table"])
+        is_job = any(w in query.lower() for w in ["job", "intern", "career", "work", "position"])
+        is_shop = any(w in query.lower() for w in ["buy", "price", "shop", "purchase", "store", "book", "laptop", "table", "refrigerator", "product"])
         
-        intent_description = ""
-        if is_job_query:
-            intent_description = "You are a smart job portal AI. Filter and extract ONLY direct job application forms or career portal links. Do NOT include forums (like Quora or Reddit), blog posts, news, or general advice articles."
-        elif is_shopping_query:
-            intent_description = "You are a smart shopping assistant. Filter and extract ONLY direct product purchase pages, official brand product catalogs, or e-commerce shop links (e.g. Amazon, Flipkart, Croma, brand direct store). Do NOT include product reviews, blogs, comparison forums (like Quora or Reddit), or discussion threads."
-        else:
-            intent_description = "Filter and extract highly relevant, direct action or information page links matching the user query. Do NOT include forums, blogs, or social media posts."
-
         if gemini_service.is_configured():
             try:
-                # Use Gemini to extract, filter, and optionally add directly generated results
-                prompt = f"""
-                User Query: "{query}"
-                Raw links extracted from search page:
-                {json.dumps(raw_results[:100])}
-                
-                {intent_description}
-                Extract a list of at most 8 real, highly relevant action-oriented search results matching the user's query from the raw links.
-                Specifically:
-                - For shopping/product queries, search the link title/text for any price (e.g. ₹15,000, $200, Rs. 12000, etc.) and populate the 'price' field.
-                - For job/internship queries, search the link title/text for stipend/salary (e.g. ₹10,000/month, $20/hr, etc.) and populate the 'stipend' field.
-                - For webinars/events, find dates/deadlines and populate the 'deadline' field.
-                - Set the 'type' field to "shopping" (if product/e-commerce), "job" (if internship/career), "event" (if webinar/seminar/meetup), or "general".
-                
-                Additionally, if there are fewer than 5 high-quality results from the search page, you can directly generate 2-3 highly relevant direct links from well-known official sites (e.g. official brand stores for shopping, or major career sites for jobs) based on your knowledge.
-                For each result, extract the title/name, company/source, direct URL, location, and the extracted context details (price, stipend, deadline, type).
-                Provide a concise, friendly summary of what you found.
-                """
-                
-                from pydantic import BaseModel, Field
+                from pydantic import BaseModel
                 class SearchResultItem(BaseModel):
                     title: str
                     company: Optional[str] = None
@@ -350,121 +893,63 @@ class AgentOrchestrator:
                     items: List[SearchResultItem]
                     summary: str
 
-                parsed_res = gemini_service._call_model(prompt, SearchResultsResponse)
+                prompt = f"""
+                User Query: "{query}"
+                Raw links from search engine:
+                {json.dumps(raw_results[:100])}
                 
-                for item in parsed_res.items:
+                Extract at most 6 direct, authentic product or application links.
+                For books/shopping: identify store name (Amazon, Flipkart, etc.), exact price if visible, and set type='shopping'.
+                For jobs: identify company, stipend, location, and set type='job'.
+                Provide a concise summary of what you found.
+                """
+                parsed = gemini_service._call_model(prompt, SearchResultsResponse)
+                for item in parsed.items:
                     search_items.append({
                         "title": item.title,
-                        "company": item.company or "Web Link",
+                        "company": item.company or "Store Link",
                         "url": item.url,
                         "location": item.location or "",
                         "price": item.price,
                         "stipend": item.stipend,
                         "deadline": item.deadline,
-                        "type": item.type or "general"
+                        "type": item.type or ("shopping" if is_shop else "general")
                     })
-                summary = parsed_res.summary
+                summary = parsed.summary
             except Exception as e:
-                print(f"Gemini search parsing failed, falling back to local: {e}")
-                
-        # If Gemini is not configured or failed, do local filtering
+                print(f"Gemini search parsing fallback: {e}")
+
+        # Local deterministic extraction fallback
         if not search_items:
-            blacklist = [
-                "quora.com", "reddit.com", "pinterest.com", "facebook.com", 
-                "twitter.com", "instagram.com", "medium.com", "blogspot.com", 
-                "wordpress.com", "stackoverflow.com", "youtube.com", 
-                "wikipedia.org", "google.com", "support.google", "github.com",
-                "justdial.com", "olx.in", "quikr.com", "indiamart.com"
-            ]
-            filtered_links = []
+            blacklist = ["quora.com", "reddit.com", "pinterest.com", "facebook.com", "twitter.com", "instagram.com", "medium.com", "google.com", "support.google", "youtube.com"]
+            filtered = [r for r in raw_results if not any(b in r["href"].lower() for b in blacklist)][:6]
             
-            # Identify intent
-            is_job = any(w in query.lower() for w in ["job", "intern", "career", "work", "position"])
-            is_shop = any(w in query.lower() for w in ["buy", "price", "shop", "purchase", "store", "refrigerator", "fridge", "laptop", "table"])
-            is_evt = any(w in query.lower() for w in ["webinar", "event", "seminar", "meetup", "register"])
-            
-            job_keywords = ["job", "career", "intern", "recruit", "apply", "post", "work", "position"]
-            shop_keywords = ["product", "buy", "shop", "store", "amazon", "flipkart", "croma", "reliancedigital", "price", "item", "deal", "refrigerator", "fridge", "laptop", "table"]
-            
-            for r in raw_results:
-                url = r["href"].lower()
-                text = r["text"].lower()
-                
-                # Check blacklist
-                if any(b in url for b in blacklist):
-                    continue
-                    
-                if is_job:
-                    if any(k in url or k in text for k in job_keywords):
-                        filtered_links.append(r)
-                elif is_shop:
-                    if any(k in url or k in text for k in shop_keywords):
-                        filtered_links.append(r)
-                else:
-                    filtered_links.append(r)
-            
-            if len(filtered_links) < 3:
-                filtered_links = [r for r in raw_results if not any(b in r["href"].lower() for b in blacklist)][:8]
-            else:
-                filtered_links = filtered_links[:8]
-                
-            import re
-            for idx, r in enumerate(filtered_links):
-                # Clean title
+            for idx, r in enumerate(filtered):
                 title = r["text"].split("\n")[0].strip()
                 if len(title) > 80:
                     title = title[:80] + "..."
-                # Estimate company from URL host
                 from urllib.parse import urlparse
-                parsed_uri = urlparse(r["href"])
-                domain = parsed_uri.netloc.replace("www.", "")
-                company = domain.split(".")[0].capitalize()
+                domain = urlparse(r["href"]).netloc.replace("www.", "").split(".")[0].capitalize()
                 
-                r_type = "general"
-                if is_job:
-                    r_type = "job"
-                elif is_shop:
-                    r_type = "shopping"
-                elif is_evt:
-                    r_type = "event"
-                    
-                price_val = None
-                stipend_val = None
-                deadline_val = None
-                
-                # Simple extraction from title/anchor text
                 price_match = re.search(r'(?:₹|Rs\.?|\$)\s*\d+(?:,\d+)*(?:\.\d+)?', r["text"])
-                if price_match:
-                    if r_type == "shopping":
-                        price_val = price_match.group(0)
-                    elif r_type == "job":
-                        stipend_val = price_match.group(0)
-                        
-                deadline_match = re.search(r'(?:apply by|deadline|before|last date|date:?)\s*([a-zA-Z0-9\s]+)', r["text"].lower())
-                if deadline_match:
-                    deadline_val = deadline_match.group(1).strip().capitalize()
-                
                 search_items.append({
-                    "title": title or f"Search Result #{idx+1}",
-                    "company": company,
+                    "title": title or f"Listing #{idx+1}",
+                    "company": domain,
                     "url": r["href"],
                     "location": profile_data.get("address", ""),
-                    "price": price_val,
-                    "stipend": stipend_val,
-                    "deadline": deadline_val,
-                    "type": r_type
+                    "price": price_match.group(0) if price_match else None,
+                    "type": "shopping" if is_shop else ("job" if is_job else "general")
                 })
-            summary = f"I found {len(search_items)} matches for '{query}' in the web search."
+            summary = f"I found {len(search_items)} seller and store listings for '{query}'. Click 'Automate via MOSAIC' to open the store, select your item, and prepare checkout."
 
-        # Keep browser session open for subsequent apply automation, but set browser_active to False so viewport is hidden!
-        # Save activity log
+        screenshot = webcmd_client.get_screenshot(session_id)
+        
         activity = db.query(UserActivity).filter(UserActivity.task_id == task_id).first()
         if activity:
             activity.status = "completed"
             activity.result = summary
             db.commit()
-            
-        screenshot = webcmd_client.get_screenshot(session_id)
+
         return {
             "task_id": task_id,
             "status": "idle",
@@ -474,501 +959,26 @@ class AgentOrchestrator:
             "browser_active": False,
             "browser_url": search_url,
             "screenshot": screenshot,
-            "results": search_items
-        }
-
-    def _format_table(self, headers: List[str], rows: List[Any]) -> str:
-        tbl = "| " + " | ".join(headers) + " |\n"
-        tbl += "| " + " | ".join(["---"] * len(headers)) + " |\n"
-        for row in rows:
-            cells = row.cells if hasattr(row, "cells") else row
-            tbl += "| " + " | ".join([str(c) for c in cells]) + " |\n"
-        return tbl
-
-    def _run_local_fallback_simulation(
-        self,
-        db: Session,
-        task_id: str,
-        query: str,
-        profile_data: Dict[str, Any],
-        screenshot: Optional[str]
-    ) -> Dict[str, Any]:
-        session = active_sessions[task_id]
-        session_id = session["session_id"]
-        activity = db.query(UserActivity).filter(UserActivity.task_id == task_id).first()
-
-        # Handle form-filling fallback for application or direct URL action
-        if "apply" in query or "job" in query or "http" in query:
-            # Fallback auto-fill on the actual webpage using Playwright
-            fill_success = False
-            current_url = session.get("current_url") or "https://google.com"
-            try:
-                # Find input elements
-                find_fields_script = """
-                return await page.evaluate(() => {
-                    const inputs = Array.from(document.querySelectorAll('input, textarea'));
-                    const fields = [];
-                    for (const input of inputs) {
-                        const id = input.id || "";
-                        const name = input.name || "";
-                        const placeholder = input.placeholder || "";
-                        if (id || name || placeholder) {
-                            fields.push({ id, name, placeholder });
-                        }
-                    }
-                    return fields;
-                });
-                """
-                res = webcmd_client.run_script(session_id, find_fields_script)
-                if res.get("ok"):
-                    fields = res["result"]
-                    # Try to fill name, email, skills if we find them
-                    for f in fields:
-                        fid = f.get("id")
-                        fname = f.get("name")
-                        fplaceholder = f.get("placeholder", "").lower()
-                        
-                        # Build standard selectors
-                        selector = None
-                        if fid:
-                            selector = f"#{fid}"
-                        elif fname:
-                            selector = f"[name='{fname}']"
-                            
-                        if selector:
-                            name_val = profile_data.get("name", "Adrish")
-                            email_val = profile_data.get("email", "user@example.com")
-                            skills_val = profile_data.get("skills", "Python")
-                            
-                            # match name
-                            if "name" in fid.lower() or "name" in fname.lower() or "name" in fplaceholder:
-                                webcmd_client.run_script(session_id, f'await page.fill("{selector}", "{name_val}");')
-                                fill_success = True
-                            # match email
-                            elif "email" in fid.lower() or "email" in fname.lower() or "email" in fplaceholder:
-                                webcmd_client.run_script(session_id, f'await page.fill("{selector}", "{email_val}");')
-                                fill_success = True
-                            # match skills
-                            elif "skills" in fid.lower() or "skills" in fname.lower() or "skills" in fplaceholder:
-                                webcmd_client.run_script(session_id, f'await page.fill("{selector}", "{skills_val}");')
-                                fill_success = True
-            except Exception as e:
-                print(f"Fallback auto-fill error: {e}")
-
-            url_res = webcmd_client.run_script(session_id, "return page.url();")
-            current_url = url_res.get("result") if url_res.get("ok") else current_url
-            session["current_url"] = current_url
-            screenshot = webcmd_client.get_screenshot(session_id) or screenshot
-
-            plan = ActionPlan(
-                task_id=task_id,
-                user_id=session["email"],
-                goal=session["request"],
-                website=current_url.split("/")[2] if "//" in current_url else "website",
-                actions=json.dumps([
-                    {"action_type": "fill", "description": "Fill name field", "selector": "#name", "value": profile_data.get("name", "Adrish")},
-                    {"action_type": "fill", "description": "Fill email field", "selector": "#email", "value": profile_data.get("email", "user@example.com")},
-                    {"action_type": "fill", "description": "Fill skills/profile field", "selector": "#skills", "value": profile_data.get("skills", "Python")}
-                ]),
-                information_to_be_sent=json.dumps({
-                    "name": profile_data.get("name", "Adrish"),
-                    "email": profile_data.get("email", "user@example.com"),
-                    "skills": profile_data.get("skills", "Python")
-                }),
-                risk_level="CONSEQUENTIAL",
-                approval_required=True,
-                approval_status="pending",
-                final_action="click submit button"
-            )
-            db.add(plan)
-            db.commit()
-
-            session["status"] = "waiting_approval"
-            if activity:
-                activity.status = "waiting_approval"
-                activity.steps = json.dumps(session["steps"])
-                db.commit()
-
-            return {
-                "task_id": task_id,
-                "status": "waiting_approval",
-                "response": "I have navigated to the application page and mapped your profile details into the form. Please review the actual form on the right and check the details below before clicking Approve.",
-                "clarification_needed": False,
-                "action_plan_required": True,
-                "action_plan": {
-                    "goal": plan.goal,
-                    "website": plan.website,
-                    "actions": json.loads(plan.actions),
-                    "information_to_be_sent": json.loads(plan.information_to_be_sent),
-                    "risk_level": plan.risk_level
-                },
-                "browser_active": True,
-                "browser_url": current_url,
-                "screenshot": screenshot
-            }
-
-        elif "internship" in query:
-            search_query = f"software engineering internships in {profile_data.get('address', 'Kolkata')} for skills {profile_data.get('skills', 'Python')}"
-            session["current_url"] = f"https://www.google.com/search?q={search_query.replace(' ', '+')}"
-            webcmd_client.run_script(session_id, f'await page.goto("{session["current_url"]}", {{ waitUntil: "domcontentloaded", timeout: 10000 }});')
-            screenshot = webcmd_client.get_screenshot(session_id) or screenshot
-
-            plan = ActionPlan(
-                task_id=task_id,
-                user_id=session["email"],
-                goal="Submit Application for Software Engineer Intern",
-                website="google.com/search?q=internships",
-                actions=json.dumps([
-                    {"action_type": "navigate", "description": "Go to application page", "selector": None},
-                    {"action_type": "fill", "description": "Fill name field", "selector": "#name", "value": profile_data.get("name", "Adrish")},
-                    {"action_type": "fill", "description": "Fill skills field", "selector": "#skills", "value": profile_data.get("skills", "Python")},
-                    {"action_type": "submit", "description": "Click Submit application button", "selector": "#submit-btn"}
-                ]),
-                information_to_be_sent=json.dumps({
-                    "name": profile_data.get("name", "Adrish"),
-                    "skills": profile_data.get("skills", "Python, ML")
-                }),
-                risk_level="CONSEQUENTIAL",
-                approval_required=True,
-                approval_status="pending",
-                final_action="click submit button"
-            )
-            db.add(plan)
-            db.commit()
-
-            session["status"] = "waiting_approval"
-            if activity:
-                activity.status = "waiting_approval"
-                activity.steps = json.dumps(session["steps"])
-                db.commit()
-
-            return {
-                "task_id": task_id,
-                "status": "waiting_approval",
-                "response": "I found software engineering internships matching your profile in Kolkata. I have mapped your profile fields and prepared the application details. Please review the Action Preview below and click Approve to execute.",
-                "clarification_needed": False,
-                "action_plan_required": True,
-                "action_plan": {
-                    "goal": plan.goal,
-                    "website": plan.website,
-                    "actions": json.loads(plan.actions),
-                    "information_to_be_sent": json.loads(plan.information_to_be_sent),
-                    "risk_level": plan.risk_level
-                },
-                "browser_active": True,
-                "browser_url": session["current_url"],
-                "screenshot": screenshot
-            }
-
-        elif "table" in query or "laptop" in query:
-            search_query = f"buy study table with drawers under 4000 rupees in {profile_data.get('address', 'Kolkata')}" if "table" in query else f"buy programming laptop under 60000 rupees"
-            session["current_url"] = f"https://www.google.com/search?q={search_query.replace(' ', '+')}"
-            webcmd_client.run_script(session_id, f'await page.goto("{session["current_url"]}", {{ waitUntil: "domcontentloaded", timeout: 10000 }});')
-            screenshot = webcmd_client.get_screenshot(session_id) or screenshot
-
-            plan = ActionPlan(
-                task_id=task_id,
-                user_id=session["email"],
-                goal="Prepare Purchase for Study Table with Drawers (₹3,800)",
-                website="google.com/search?q=shopping",
-                actions=json.dumps([
-                    {"action_type": "navigate", "description": "Navigate to product cart", "selector": None},
-                    {"action_type": "fill", "description": "Fill shipping address", "selector": "#shipping-addr", "value": profile_data.get("address", "Kolkata")},
-                    {"action_type": "click", "description": "Proceed to payment", "selector": "#payment-btn"}
-                ]),
-                information_to_be_sent=json.dumps({
-                    "shipping_address": profile_data.get("address", "Kolkata, WB")
-                }),
-                risk_level="HIGH_RISK",
-                approval_required=True,
-                approval_status="pending",
-                final_action="proceed to payment screen"
-            )
-            db.add(plan)
-            db.commit()
-
-            session["status"] = "waiting_approval"
-            if activity:
-                activity.status = "waiting_approval"
-                activity.steps = json.dumps(session["steps"])
-                db.commit()
-
-            return {
-                "task_id": task_id,
-                "status": "waiting_approval",
-                "response": "I compared prices and found a sleek compact study table for ₹3,800 with drawers. I added it to your cart. Please review the checkout preview. Note that since online payment is required, MOSAIC will pause at checkout for manual payment completion.",
-                "clarification_needed": False,
-                "action_plan_required": True,
-                "action_plan": {
-                    "goal": plan.goal,
-                    "website": plan.website,
-                    "actions": json.loads(plan.actions),
-                    "information_to_be_sent": json.loads(plan.information_to_be_sent),
-                    "risk_level": plan.risk_level
-                },
-                "browser_active": True,
-                "browser_url": session["current_url"],
-                "screenshot": screenshot
-            }
-
-        else:
-            search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
-            session["current_url"] = search_url
-            
-            # Go to Google and handle cookie consent if present
-            navigation_script = f"""
-            await page.goto("{search_url}", {{ waitUntil: 'domcontentloaded', timeout: 10000 }});
-            await page.waitForTimeout(2000);
-            await page.evaluate(() => {{
-                const btn = Array.from(document.querySelectorAll('button')).find(b => {{
-                    const txt = b.innerText.trim().toLowerCase();
-                    return txt.includes('accept all') || txt.includes('i agree') || txt.includes('agree') || txt.includes('consent');
-                }});
-                if (btn) btn.click();
-            }});
-            await page.waitForTimeout(2000);
-            """
-            webcmd_client.run_script(session_id, navigation_script)
-            screenshot = webcmd_client.get_screenshot(session_id) or screenshot
-
-            session["status"] = "completed"
-            if activity:
-                activity.status = "completed"
-                activity.result = f"Found search details for: {query}"
-                activity.steps = json.dumps(session["steps"])
-                db.commit()
-
-            webcmd_client.close_session(session_id)
-            session["session_id"] = None
-            active_sessions.pop(task_id, None)
-
-            return {
-                "task_id": task_id,
-                "status": "completed",
-                "response": f"I have run a general search for your query. The results are visible in the viewport.",
-                "clarification_needed": False,
-                "action_plan_required": False,
-                "browser_active": True,
-                "browser_url": search_url,
-                "screenshot": screenshot
-            }
-
-    def _run_browser_orchestration(
-        self,
-        db: Session,
-        task_id: str,
-        user_message: str,
-        profile_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """
-        Dynamic LLM-in-the-loop browser driver. Executes actions step-by-step
-        guided by Gemini reasoning and Webcmd accessibility tree evaluation.
-        """
-        session = active_sessions[task_id]
-        session_id = session["session_id"]
-        activity = db.query(UserActivity).filter(UserActivity.task_id == task_id).first()
-
-        # Handle user responses to OTP or input requests
-        if session.get("pending_input_selector"):
-            selector = session.pop("pending_input_selector")
-            fill_script = f'await page.fill("{selector}", "{user_message}");'
-            webcmd_client.run_script(session_id, fill_script)
-            session["steps"].append({
-                "action": "fill",
-                "description": f"Filled user response into element '{selector}'"
-            })
-
-        # Run reasoning up to 5 steps per conversational exchange
-        for step in range(5):
-            url_res = webcmd_client.run_script(session_id, "return page.url();")
-            url = url_res.get("result") if url_res.get("ok") else "https://google.com"
-            session["current_url"] = url
-
-            snapshot = webcmd_client.get_accessibility_snapshot(session_id)
-            screenshot = webcmd_client.get_screenshot(session_id) or ""
-
-            # Check configuration
-            if not gemini_service.is_configured():
-                return self._run_local_fallback_simulation(db, task_id, session["request"].lower(), profile_data, screenshot)
-
-            try:
-                history = [{"action": s.get("action"), "description": s.get("description")} for s in session["steps"]]
-                next_action = gemini_service.determine_next_browser_action(
-                    goal=session["request"],
-                    current_url=url,
-                    page_snapshot=snapshot,
-                    user_profile=profile_data,
-                    execution_history=history
-                )
-            except Exception as e:
-                print(f"Warning: Gemini browser reasoning call failed: {e}")
-                return self._run_local_fallback_simulation(db, task_id, session["request"].lower(), profile_data, screenshot)
-
-            # Log reasoning step
-            session["steps"].append({
-                "action": "thought",
-                "description": f"Agent Thought: {next_action.thought}"
-            })
-
-            # Handle completing state
-            if next_action.action_type == "complete":
-                session["status"] = "completed"
-                if activity:
-                    activity.status = "completed"
-                    activity.result = next_action.final_summary or "Successfully completed goal."
-                    activity.steps = json.dumps(session["steps"])
-                    db.commit()
-
-                webcmd_client.close_session(session_id)
-                session["session_id"] = None
-                active_sessions.pop(task_id, None)
-
-                response_text = next_action.final_summary or "Action sequence completed successfully."
-                if next_action.table_rows and next_action.table_headers:
-                    response_text += "\n\n### Comparison Table\n" + self._format_table(next_action.table_headers, next_action.table_rows)
-
-                return {
-                    "task_id": task_id,
-                    "status": "completed",
-                    "response": response_text,
-                    "clarification_needed": False,
-                    "action_plan_required": False,
-                    "browser_active": False
-                }
-
-            # Handle OTP or interactive clarification questions
-            elif next_action.action_type == "ask_user_otp":
-                session["status"] = "asking"
-                session["pending_input_selector"] = next_action.selector
-                if activity:
-                    activity.status = "asking"
-                    db.commit()
-
-                return {
-                    "task_id": task_id,
-                    "status": "asking",
-                    "response": next_action.question or "Please enter the authentication code / OTP shown on the page:",
-                    "clarification_needed": True,
-                    "action_plan_required": False,
-                    "browser_active": False,
-                    "browser_url": url,
-                    "screenshot": screenshot
-                }
-
-            # Handle consequential form approval blocks
-            elif next_action.action_type == "submit_form_approval":
-                plan = ActionPlan(
-                    task_id=task_id,
-                    user_id=session["email"],
-                    goal=session["request"],
-                    website=url.split("/")[2] if "//" in url else "website",
-                    actions=json.dumps([
-                        {"action_type": "fill", "description": f"Fill form element {next_action.selector}", "selector": next_action.selector, "value": next_action.value}
-                    ] if next_action.selector else []),
-                    information_to_be_sent=json.dumps(profile_data),
-                    risk_level="CONSEQUENTIAL",
-                    approval_required=True,
-                    approval_status="pending",
-                    final_action=f"Submit information to {url}"
-                )
-                db.add(plan)
-                db.commit()
-
-                session["status"] = "waiting_approval"
-                if activity:
-                    activity.status = "waiting_approval"
-                    activity.steps = json.dumps(session["steps"])
-                    db.commit()
-
-                return {
-                    "task_id": task_id,
-                    "status": "waiting_approval",
-                    "response": f"I have mapped your profile and prepared the form submission on {plan.website}. Please review the Action Preview below and click Approve to execute.",
-                    "clarification_needed": False,
-                    "action_plan_required": True,
-                    "action_plan": {
-                        "goal": plan.goal,
-                        "website": plan.website,
-                        "actions": json.loads(plan.actions),
-                        "information_to_be_sent": json.loads(plan.information_to_be_sent),
-                        "risk_level": plan.risk_level
-                    },
-                    "browser_active": True,
-                    "browser_url": url,
-                    "screenshot": screenshot
-                }
-
-            # Handle browser operations
-            elif next_action.action_type == "navigate" and next_action.url:
-                webcmd_client.run_script(session_id, f'await page.goto("{next_action.url}", {{ waitUntil: "domcontentloaded", timeout: 10000 }});')
-                session["steps"].append({
-                    "action": "navigate",
-                    "description": f"Navigated browser viewport to {next_action.url}"
-                })
-
-            elif next_action.action_type == "click" and next_action.selector:
-                # Intercept payment check via Policy Engine
-                validation = tool_router.validate_action("web_interact", {"selector": next_action.selector})
-                if next_action.selector in ["#submit", "#submit-btn", "button[type='submit']"] or "checkout" in next_action.selector:
-                    validation = tool_router.validate_action("submit_application", {"selector": next_action.selector})
-
-                if not validation["allowed"]:
-                    webcmd_client.close_session(session_id)
-                    session["session_id"] = None
-                    active_sessions.pop(task_id, None)
-                    return {
-                        "task_id": task_id,
-                        "status": "completed",
-                        "response": f"⚠️ Safety Boundary Triggered: {validation['reason']}",
-                        "clarification_needed": False,
-                        "action_plan_required": False,
-                        "browser_active": False
-                    }
-
-                click_script = f'await page.click("{next_action.selector}");'
-                webcmd_client.run_script(session_id, click_script)
-                session["steps"].append({
-                    "action": "click",
-                    "description": f"Clicked element selector: {next_action.selector}"
-                })
-
-            elif next_action.action_type == "fill" and next_action.selector:
-                val = next_action.value or ""
-                fill_script = f'await page.fill("{next_action.selector}", "{val}");'
-                webcmd_client.run_script(session_id, fill_script)
-                session["steps"].append({
-                    "action": "fill",
-                    "description": f"Filled element {next_action.selector}"
-                })
-
-            elif next_action.action_type == "wait":
-                import time
-                time.sleep(2)
-                session["steps"].append({
-                    "action": "wait",
-                    "description": "Waited 2 seconds for element updates."
-                })
-
-        # Step limit reached, return intermediate state to keep client updated
-        return {
-            "task_id": task_id,
-            "status": "browsing",
-            "response": "Continuing exploration in page view...",
-            "clarification_needed": False,
-            "action_plan_required": False,
-            "browser_active": False,
-            "browser_url": session["current_url"],
-            "screenshot": webcmd_client.get_screenshot(session_id)
+            "results": search_items,
+            "current_action": "Search results loaded"
         }
 
     def _execute_approved_plan(self, db: Session, task_id: str) -> Dict[str, Any]:
         """
-        Executes the final consequential step after human approval,
-        logging audit logs and closing the browser.
+        Executes the final approved step, enforcing payment boundaries.
         """
-        session = active_sessions[task_id]
+        session = active_sessions.get(task_id)
+        if not session or not session.get("session_id"):
+            return {
+                "task_id": task_id,
+                "status": "idle",
+                "response": "No active browser session found for execution.",
+                "clarification_needed": False,
+                "action_plan_required": False,
+                "browser_active": False
+            }
+            
         session_id = session["session_id"]
-        
         plan = db.query(ActionPlan).filter(
             ActionPlan.task_id == task_id,
             ActionPlan.approval_status == "approved"
@@ -984,137 +994,60 @@ class AgentOrchestrator:
                 "browser_active": False
             }
 
-        # Policy Engine validation check
-        validation = tool_router.validate_action(
-            "submit_application" if plan.risk_level == "CONSEQUENTIAL" else "execute_payment",
-            {}
-        )
-
-        if not validation["allowed"] and validation.get("manual_action_required"):
-            # Payments safety boundary enforced!
-            session["steps"].append({
-                "action": "manual_payment_block",
-                "description": "Stopped automation due to payment boundary constraint. Displayed manual checkout warning."
-            })
-            
-            activity = db.query(UserActivity).filter(UserActivity.task_id == task_id).first()
-            if activity:
-                activity.steps = json.dumps(session["steps"])
-                activity.status = "completed"
-                activity.result = "Checkout cart prepared. Manual payment required."
-                db.commit()
-                
-            webcmd_client.close_session(session_id)
-            session["session_id"] = None
-            active_sessions.pop(task_id, None)
-
+        # Payment check
+        if plan.risk_level == "HIGH_RISK":
             return {
                 "task_id": task_id,
                 "status": "completed",
-                "response": "⚠️ Manual Payment Required! MOSAIC safety policy blocks automated payments. The checkout details are loaded. Please proceed manually in the browser viewport to complete the transaction.",
+                "response": "⚠️ **Manual Payment Required**: MOSAIC policy strictly prevents automated payment execution. The cart is ready on the live browser viewport. Please complete payment manually.",
                 "clarification_needed": False,
                 "action_plan_required": False,
-                "browser_active": False
+                "browser_active": True,
+                "browser_url": session.get("current_url"),
+                "screenshot": webcmd_client.get_screenshot(session_id)
             }
 
-        # Actually execute the final submit action in the browser
-        submit_script = """
-        await page.evaluate(() => {
-            // Find and click the submit button
-            const selectors = [
-                'button[type="submit"]',
-                'input[type="submit"]',
-                '#submit',
-                '#submit-btn',
-                '.submit-btn',
-                '.submit',
-                'button.btn-primary',
-                'button.primary'
-            ];
-            for (const selector of selectors) {
-                const el = document.querySelector(selector);
-                if (el) {
-                    el.click();
-                    return true;
-                }
-            }
-            
-            // Text-based fallback search
-            const buttons = Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"], a.btn'));
-            const matchText = (text) => {
-                const t = text.toLowerCase();
-                return t.includes('submit') || t.includes('apply') || t.includes('register') || t.includes('confirm') || t.includes('checkout') || t.includes('book') || t.includes('join');
-            };
-            const btn = buttons.find(b => matchText(b.innerText || b.value || ""));
-            if (btn) {
-                btn.click();
-                return true;
-            }
-            return false;
-        });
-        """
-        webcmd_client.run_script(session_id, submit_script)
-        webcmd_client.run_script(session_id, 'await page.waitForTimeout(4000);')
+        # Execute submission
+        webcmd_client.click_element(session_id, text="submit") or webcmd_client.click_element(session_id, text="apply") or webcmd_client.click_element(session_id, text="confirm")
+        import time
+        time.sleep(3)
         screenshot = webcmd_client.get_screenshot(session_id)
 
         session["steps"].append({
-            "action": "consequential_submission",
-            "tool": "webcmd_browser",
-            "description": f"Executed click on submit button for website {plan.website}."
+            "action": "submission",
+            "description": f"Executed action plan for {plan.website}"
         })
 
-        # Save activity audit trail
         activity = db.query(UserActivity).filter(UserActivity.task_id == task_id).first()
         if activity:
-            activity.steps = json.dumps(session["steps"])
             activity.status = "completed"
-            activity.result = f"Successfully submitted forms to {plan.website}."
+            activity.result = f"Submitted to {plan.website}"
             db.commit()
-
-        # Cleanup
-        webcmd_client.close_session(session_id)
-        session["session_id"] = None
-        active_sessions.pop(task_id, None)
 
         return {
             "task_id": task_id,
             "status": "completed",
-            "response": f"✓ Success! I have successfully completed the action plan and submitted your details to {plan.website}.",
+            "response": f"✓ Success! I have successfully submitted your information to {plan.website}.",
             "clarification_needed": False,
             "action_plan_required": False,
-            "browser_active": False
+            "browser_active": True,
+            "browser_url": session.get("current_url"),
+            "screenshot": screenshot,
+            "current_action": "Completed"
         }
 
     def _cancel_plan(self, db: Session, task_id: str) -> Dict[str, Any]:
-        session = active_sessions[task_id]
-        session_id = session["session_id"]
-
-        plan = db.query(ActionPlan).filter(
-            ActionPlan.task_id == task_id,
-            ActionPlan.approval_status == "rejected"
-        ).first()
-
-        session["steps"].append({
-            "action": "user_rejection",
-            "description": "User rejected the prepared action preview."
-        })
-
-        activity = db.query(UserActivity).filter(UserActivity.task_id == task_id).first()
-        if activity:
-            activity.steps = json.dumps(session["steps"])
-            activity.status = "cancelled"
-            activity.result = "Cancelled by user."
-            db.commit()
-
-        # Cleanup
-        webcmd_client.close_session(session_id)
-        session["session_id"] = None
+        session = active_sessions.get(task_id, {})
+        session_id = session.get("session_id")
+        if session_id:
+            webcmd_client.close_session(session_id)
+            session["session_id"] = None
         active_sessions.pop(task_id, None)
 
         return {
             "task_id": task_id,
             "status": "cancelled",
-            "response": "Action preview cancelled. The browser session has been safely closed.",
+            "response": "Action cancelled. Browser session has been safely closed.",
             "clarification_needed": False,
             "action_plan_required": False,
             "browser_active": False

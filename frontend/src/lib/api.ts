@@ -12,11 +12,21 @@ export interface SearchResultItem {
   location?: string;
 }
 
+export interface InteractiveOptionItem {
+  id: string;
+  title: string;
+  description?: string;
+  url?: string;
+  selector?: string;
+}
+
 export interface ChatMessage {
   sender: "user" | "agent" | "system";
   text: string;
   timestamp: Date;
   results?: SearchResultItem[];
+  options?: InteractiveOptionItem[];
+  current_action?: string;
 }
 
 export interface MemoryItem {
@@ -214,6 +224,8 @@ export const api = {
       browser_url?: string;
       screenshot?: string;
       results?: SearchResultItem[];
+      options?: InteractiveOptionItem[];
+      current_action?: string;
     }>("/agent/chat", {
       method: "POST",
       body: JSON.stringify({ email, message, task_id: taskId }),
