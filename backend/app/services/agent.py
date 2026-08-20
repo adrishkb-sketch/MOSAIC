@@ -174,14 +174,28 @@ class AgentOrchestrator:
 
             if selected_option:
                 if selected_option.get("url"):
+                    if session.get("browser_active") and session.get("session_id"):
+                        target_u = selected_option["url"]
+                        if not target_u.startswith("http"):
+                            cur = session.get("current_url", "")
+                            base_domain = f"https://{cur.split('/')[2]}" if '//' in cur else "https://www.flipkart.com"
+                            target_u = base_domain + ("" if target_u.startswith("/") else "/") + target_u
+                        session["current_url"] = target_u
+                        webcmd_client.navigate_to(session["session_id"], target_u)
+                        import time
+                        time.sleep(2.5)
+                        return self._run_live_site_orchestration(db, task_id, profile_data, user_instruction="buy now")
                     return self._start_live_site_automation(db, task_id, selected_option["url"], profile_data)
                 elif selected_option.get("selector") and session.get("session_id"):
                     webcmd_client.click_element(session["session_id"], selector=selected_option["selector"])
-                    return self._run_live_site_orchestration(db, task_id, profile_data)
+                    import time
+                    time.sleep(2.5)
+                    return self._run_live_site_orchestration(db, task_id, profile_data, user_instruction="buy now")
                 else:
                     chosen_title = selected_option.get("title", message)
                     session["request"] = f"Buy or search for {chosen_title}"
                     return self._run_search_orchestration(db, task_id, session["request"], profile_data)
+
 
         # 6. Handle State: Awaiting OTP Input
         if session.get("state") == "awaiting_otp" and session.get("pending_input_selector") and session.get("session_id"):
@@ -655,11 +669,63 @@ class AgentOrchestrator:
         # 5. Deterministic Local Fallback (when Gemini offline or heuristic matching)
         instruction_lower = (user_instruction or "").lower()
 
-        # Handle sort / filter by cheapest or low price
+        # Action A: In-portal search (e.g. "search for macbook", "find dell laptops", "look for books")
+        if any(instruction_lower.startswith(prefix) for prefix in ["search for", "search ", "find ", "look for ", "type "]) and not any(k in instruction_lower for k in ["cheapest", "low to high", "checkout", "buy"]):
+            search_term = re.sub(r'^(?:search for|search|find|look for|type)\s*', '', instruction_lower).strip()
+            if search_term:
+                search_input = (
+                    "input[title*='Search']" or
+                    "input[name='q']" or
+                    "#twotabsearchtextbox" or
+                    "input[placeholder*='Search']" or
+                    "input[type='text']"
+                )
+                webcmd_client.fill_element(session_id, search_input, search_term, press_enter=True)
+                import time
+                time.sleep(2.5)
+
+                page_info = webcmd_client.extract_page_details(session_id)
+                current_url = page_info.get("url") or session["current_url"]
+                session["current_url"] = current_url
+                screenshot = webcmd_client.get_screenshot(session_id) or screenshot
+                items = page_info.get("items", [])
+
+                formatted_options = [
+                    {
+                        "id": str(i + 1),
+                        "title": item["title"],
+                        "description": f"Price: {item.get('price', 'Check on page')}",
+                        "url": item.get("url"),
+                        "selector": item.get("selector")
+                    }
+                    for i, item in enumerate(items[:4])
+                ]
+
+                session["status"] = "asking"
+                session["state"] = "awaiting_user_choice"
+                session["available_options"] = formatted_options
+                if activity:
+                    activity.status = "asking"
+                    db.commit()
+
+                return {
+                    "task_id": task_id,
+                    "status": "asking",
+                    "response": f"✓ Searched for **{search_term}** on the portal. I found {len(formatted_options)} matching items. Which one would you like to select or checkout?",
+                    "clarification_needed": True,
+                    "action_plan_required": False,
+                    "browser_active": True,
+                    "browser_url": current_url,
+                    "screenshot": screenshot,
+                    "options": formatted_options,
+                    "current_action": f"Searched for '{search_term}'"
+                }
+
+        # Action B: Handle sort / filter by cheapest or low price
         if any(k in instruction_lower for k in ["cheapest", "low to high", "lowest price", "lowest", "cheaper", "sort", "filter"]):
             sort_clicked = False
             
-            # 1. Direct Portal Query Navigation for robust sorting across AJAX/React re-renders
+            # Direct Portal Query Navigation for robust sorting across AJAX/React re-renders
             if "flipkart.com" in current_url and "sort=price_asc" not in current_url:
                 new_url = current_url + ("&sort=price_asc" if "?" in current_url else "?sort=price_asc")
                 session["current_url"] = new_url
@@ -671,7 +737,6 @@ class AgentOrchestrator:
                 webcmd_client.navigate_to(session_id, new_url)
                 sort_clicked = True
             else:
-                # 2. Click sort tabs or dropdown elements
                 sort_clicked = (
                     webcmd_client.click_element(session_id, text="Price -- Low to High") or
                     webcmd_client.click_element(session_id, text="Price: Low to High") or
@@ -730,9 +795,61 @@ class AgentOrchestrator:
                 "current_action": "Filtered by cheapest (Price: Low to High)"
             }
 
-
-        # Handle Catalog items
+        # Action C: Checkout / Buy Item (Handles both Catalog Page and Product Detail Page)
+        is_checkout_intent = any(k in instruction_lower for k in ["checkout", "buy", "purchase", "order", "add to cart", "buy now", "get this", "get the"])
         items = page_info.get("items", [])
+
+        # If on Catalog / Search results page and user says "checkout" -> open the first/best product first!
+        if is_checkout_intent and (len(items) > 0 or "/search" in current_url or "/pr?" in current_url or "gaming-laptop" in current_url):
+            target_item = items[0] if items else None
+            if target_item and target_item.get("url"):
+                target_prod_url = target_item["url"]
+                if not target_prod_url.startswith("http"):
+                    base_domain = f"https://{current_url.split('/')[2]}"
+                    target_prod_url = base_domain + ("" if target_prod_url.startswith("/") else "/") + target_prod_url
+                
+                session["current_url"] = target_prod_url
+                webcmd_client.navigate_to(session_id, target_prod_url)
+                session["steps"].append({
+                    "action": "open_product",
+                    "description": f"Opened product page for '{target_item['title']}'"
+                })
+                import time
+                time.sleep(2.5)
+
+                # Now trigger buy now / add to cart on the opened product page
+                return self._run_live_site_orchestration(db, task_id, profile_data, user_instruction="buy now")
+
+        # Action D: Product Detail Page: Try to click "Buy Now" or "Add to Cart"
+        buy_clicked = (
+            webcmd_client.click_element(session_id, selector="button._2KpZ6l._2U9uAL._3v1-ww") or
+            webcmd_client.click_element(session_id, selector="button._2KpZ6l._2U9uAL") or
+            webcmd_client.click_element(session_id, selector="button.QqFHMw.vslbG+._3Yl67G._7PdMfk") or
+            webcmd_client.click_element(session_id, selector="#buy-now-button") or
+            webcmd_client.click_element(session_id, selector="#add-to-cart-button") or
+            webcmd_client.click_element(session_id, selector="input[name='submit.buy-now']") or
+            webcmd_client.click_element(session_id, text="BUY NOW") or
+            webcmd_client.click_element(session_id, text="Buy Now") or
+            webcmd_client.click_element(session_id, text="ADD TO CART") or
+            webcmd_client.click_element(session_id, text="Add to Cart") or
+            webcmd_client.click_element(session_id, text="Place Order") or
+            webcmd_client.click_element(session_id, text="Proceed to Checkout") or
+            webcmd_client.click_element(session_id, text="Go to Cart")
+        )
+
+        if buy_clicked:
+            session["item_selected"] = True
+            import time
+            time.sleep(2.5)
+            
+            session["steps"].append({
+                "action": "click_buy_now",
+                "description": "Clicked 'Buy Now / Add to Cart' button on product page"
+            })
+            
+            return self._run_live_site_orchestration(db, task_id, profile_data)
+
+        # Action E: Handle Catalog items display if multiple items and no specific action
         if len(items) > 1 and "item_selected" not in session and "apply" not in session.get("request", "").lower():
             formatted_options = [
                 {
@@ -765,7 +882,7 @@ class AgentOrchestrator:
                 "current_action": "📦 Awaiting item selection"
             }
 
-        # Form Fill & Application Action Plan Creation
+        # Action F: Form Fill & Application Action Plan Creation
         orig_req = session.get("request", "").lower()
         if "apply" in orig_req or "intern" in orig_req or "job" in orig_req or "register" in orig_req or "form" in orig_req:
             for inp in page_info.get("inputs", []):
@@ -828,27 +945,6 @@ class AgentOrchestrator:
                 "current_action": "Awaiting approval to submit"
             }
 
-        # Product Detail Page: Try to click "Buy Now" or "Add to Cart"
-        buy_clicked = (
-            webcmd_client.click_element(session_id, selector="#buy-now-button") or
-            webcmd_client.click_element(session_id, selector="#add-to-cart-button") or
-            webcmd_client.click_element(session_id, text="buy now") or
-            webcmd_client.click_element(session_id, text="add to cart") or
-            webcmd_client.click_element(session_id, text="proceed to checkout")
-        )
-
-        if buy_clicked:
-            session["item_selected"] = True
-            import time
-            time.sleep(2)
-            
-            session["steps"].append({
-                "action": "click_buy_now",
-                "description": "Clicked 'Buy Now / Add to Cart' button on product page"
-            })
-            
-            return self._run_live_site_orchestration(db, task_id, profile_data)
-
         # Default fallback view
         screenshot = webcmd_client.get_screenshot(session_id) or screenshot
         return {
@@ -862,6 +958,7 @@ class AgentOrchestrator:
             "screenshot": screenshot,
             "current_action": "Browsing page"
         }
+
 
 
     def _run_search_orchestration(

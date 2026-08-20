@@ -369,9 +369,12 @@ class WebcmdClient:
             return False
 
     def click_element(self, session_id: str, selector: Optional[str] = None, text: Optional[str] = None) -> bool:
-        """Clicks an element by CSS selector or visible text."""
+        """Clicks an element by CSS selector or visible text, stripping target=_blank to stay in current frame."""
         script = f"""
         await page.evaluate(() => {{
+            // Remove target=_blank so clicks stay inside current session
+            document.querySelectorAll('a[target="_blank"]').forEach(a => a.removeAttribute('target'));
+
             const targetSelector = {json.dumps(selector)};
             const targetText = {json.dumps(text.lower() if text else None)};
             
@@ -380,6 +383,8 @@ class WebcmdClient:
                     const el = document.querySelector(targetSelector);
                     if (el) {{
                         el.scrollIntoView({{ behavior: 'instant', block: 'center' }});
+                        el.dispatchEvent(new MouseEvent('mousedown', {{ bubbles: true, cancelable: true }}));
+                        el.dispatchEvent(new MouseEvent('mouseup', {{ bubbles: true, cancelable: true }}));
                         el.click();
                         return true;
                     }}
@@ -387,11 +392,16 @@ class WebcmdClient:
             }}
             
             if (targetText) {{
-                const all = Array.from(document.querySelectorAll('button, a, input[type="button"], input[type="submit"], div[role="button"], span, div, li'));
+                const all = Array.from(document.querySelectorAll('button, a, input[type="button"], input[type="submit"], div[role="button"], span, div, li, h2, h3'));
+                // Sort by shortest element first to click the exact target rather than a large parent container
+                all.sort((a, b) => (a.innerText || "").length - (b.innerText || "").length);
+
                 for (const el of all) {{
                     const t = (el.innerText || el.value || el.textContent || "").trim().toLowerCase();
-                    if (t === targetText || (t.includes(targetText) && t.length < targetText.length + 25)) {{
+                    if (t === targetText || (t.includes(targetText) && t.length < targetText.length + 35)) {{
                         el.scrollIntoView({{ behavior: 'instant', block: 'center' }});
+                        el.dispatchEvent(new MouseEvent('mousedown', {{ bubbles: true, cancelable: true }}));
+                        el.dispatchEvent(new MouseEvent('mouseup', {{ bubbles: true, cancelable: true }}));
                         el.click();
                         return true;
                     }}
@@ -405,6 +415,7 @@ class WebcmdClient:
             return bool(res.get("ok") and res.get("result"))
         except Exception:
             return False
+
 
     def fill_element(self, session_id: str, selector: str, value: str, press_enter: bool = False) -> bool:
         """Fills value into an input field and optionally presses Enter."""
