@@ -157,16 +157,17 @@ class WebcmdClient:
         """
         try:
             result = subprocess.run(
-                ["webcmd", "--session", session_id, "browser", "snapshot", "--snapshot-mode", "act"],
+                ["webcmd", "--session", session_id, "browser", "snapshot", "--snapshot-mode", "act", "--max-output", "6000"],
                 capture_output=True,
                 text=True,
+                timeout=8,
                 check=True,
                 env=self._get_env()
             )
             return result.stdout.strip()
         except Exception as e:
             print(f"Warning: Failed to capture page snapshot: {e}")
-            return "Unable to capture website accessibility tree."
+            return ""
 
     def dismiss_cookie_and_popups(self, session_id: str) -> None:
         """Dismisses common cookie banners or popups."""
@@ -205,7 +206,7 @@ class WebcmdClient:
         including URL, title, detected page category, product cards/options,
         input fields, and primary action buttons.
         """
-        script = """
+        script = r"""
         return await page.evaluate(() => {
             const url = window.location.href;
             const title = document.title;
@@ -213,34 +214,79 @@ class WebcmdClient:
             const lowerBody = bodyText.toLowerCase();
 
             // Detect page category
-            let is_payment_screen = lowerBody.includes("payment method") || lowerBody.includes("select a payment") || lowerBody.includes("upi") || lowerBody.includes("credit card") || lowerBody.includes("cvv") || lowerBody.includes("place your order") || lowerBody.includes("review order");
-            let is_otp_screen = lowerBody.includes("enter otp") || lowerBody.includes("verification code") || lowerBody.includes("one time password") || lowerBody.includes("security code") || lowerBody.includes("check your phone") || lowerBody.includes("check your email");
-            let is_login_screen = lowerBody.includes("sign-in") || lowerBody.includes("sign in") || lowerBody.includes("log in") || lowerBody.includes("login") || lowerBody.includes("password") || lowerBody.includes("create account");
-            let is_shipping_screen = lowerBody.includes("shipping address") || lowerBody.includes("delivery address") || lowerBody.includes("pin code") || lowerBody.includes("pincode") || lowerBody.includes("postal code") || lowerBody.includes("address line");
+            let is_payment_screen = lowerBody.includes("payment method") || lowerBody.includes("select a payment") || lowerBody.includes("payment options") || lowerBody.includes("upi") || lowerBody.includes("credit card") || lowerBody.includes("cvv") || lowerBody.includes("net banking") || lowerBody.includes("wallets") || lowerBody.includes("cash on delivery") || lowerBody.includes("make payment") || lowerBody.includes("pay now") || lowerBody.includes("place your order") || lowerBody.includes("review order");
+            let is_otp_screen = lowerBody.includes("enter otp") || lowerBody.includes("verification code") || lowerBody.includes("one time password") || lowerBody.includes("security code") || lowerBody.includes("check your phone") || lowerBody.includes("check your email") || lowerBody.includes("enter the 4-digit") || lowerBody.includes("enter the 6-digit") || lowerBody.includes("resend otp");
+            let is_shipping_screen = !is_payment_screen && (lowerBody.includes("shipping address") || lowerBody.includes("delivery address") || lowerBody.includes("add a new address") || lowerBody.includes("pin code") || lowerBody.includes("pincode") || lowerBody.includes("postal code") || lowerBody.includes("address line") || lowerBody.includes("street address") || lowerBody.includes("deliver here"));
 
             // Extract visible items / products if on search or catalog page
             const items = [];
+            const isJunkText = (t) => {
+                if (!t || typeof t !== 'string') return true;
+                const low = t.toLowerCase().trim();
+                const junkKeywords = [
+                    'add to compare', 'compare', 'add to wishlist', 'wishlist',
+                    'bank offer', 'free delivery', 'ratings & reviews', 'rating',
+                    'special price', 'hot deals', 'top discount', 'buy now',
+                    'add to cart', 'view details', 'flipkart', 'amazon',
+                    'sort by', 'filters', 'cart', 'sign in', 'login', 'explore plus',
+                    'off', 'sponsored', 'currently unavailable', 'out of stock'
+                ];
+                if (low.length < 5) return true;
+                return junkKeywords.some(k => low === k || (low.length < 30 && low.startsWith(k)));
+            };
+
             // Comprehensive modern selectors for Flipkart, Amazon, and generic e-commerce
             const productNodes = document.querySelectorAll(
                 '[data-id], .tUxRFH, .cPHDOP, ._75nlfW, ._1AtVbE, ._2kHMtA, ._4ddWXP, ._1xHGtK, [data-component-type="s-search-result"], .s-result-item, .product-card, article, [data-asin]'
             );
             
             for (const node of productNodes) {
-                if (items.length >= 6) break;
+                if (items.length >= 8) break;
+                
+                // Exclude compare labels / checkboxes inside the product card
+                const compareEls = node.querySelectorAll('label, ._36tUkD, ._2iDkf8, [title*="Compare"], [title*="compare"]');
+                compareEls.forEach(el => el.setAttribute('data-skip', 'true'));
+
                 // Try multiple title selectors across different portal designs
-                const titleEl = node.querySelector(
-                    '.KzDlHZ, ._4rR01Z, .s1Q9rs, .wjcEIp, ._2WkVRV, .IRpwTa, .DByuf4, h2 a, h3 a, h2 span, .a-text-normal, a.title, .product-title, h2, h3, [title]'
-                );
+                const titleCandidates = Array.from(node.querySelectorAll(
+                    '.KzDlHZ, ._4rR01Z, a.wjcEIp, a.s1Q9rs, ._2WkVRV, .IRpwTa, .DByuf4, h2 a, h3 a, h2 span, .a-text-normal, a.title, .product-title, h2, h3'
+                )).filter(el => !el.hasAttribute('data-skip') && !el.closest('[data-skip="true"]'));
+
+                let itemTitle = "";
+                for (const tc of titleCandidates) {
+                    const candidateText = (tc.innerText || tc.getAttribute('title') || "").trim();
+                    if (!isJunkText(candidateText) && candidateText.length > 8) {
+                        itemTitle = candidateText;
+                        break;
+                    }
+                }
+
+                // If brand + title pattern (e.g. Flipkart fashion/electronics)
+                const brandEl = node.querySelector('._2WkVRV');
+                const subTitleEl = node.querySelector('.wjcEIp, .IRpwTa');
+                if (brandEl && subTitleEl) {
+                    const combined = `${brandEl.innerText.trim()} ${subTitleEl.innerText.trim()}`.trim();
+                    if (!isJunkText(combined) && combined.length > 5) {
+                        itemTitle = combined;
+                    }
+                }
+
+                // Extract specs / description bullet points (e.g. CPU, GPU, RAM)
+                const specsList = Array.from(node.querySelectorAll('ul.G4BRas li, ul._1xgFaf li, ._21A0ih li, .a-spacing-mini li'))
+                    .map(li => li.innerText.trim())
+                    .filter(t => t && !isJunkText(t));
+                const specsText = specsList.slice(0, 4).join(" | ");
+
                 // Try multiple price selectors
                 const priceEl = node.querySelector(
                     '.Nx9q9m, ._30jeq3, .hl05eU, ._25b18c, .a-price .a-offscreen, .a-price-whole, .price, .product-price, [data-price]'
                 );
+                
                 // Try to find direct link
                 const linkEl = node.querySelector(
                     'a.CGtC58, a.VJA3rP, a._1fQZEK, h2 a, h3 a, a[href*="/p/"], a[href*="/dp/"], a[href*="/itm/"], a[href*="/product/"], a'
                 );
                 
-                let itemTitle = titleEl ? (titleEl.innerText || titleEl.getAttribute('title') || "").trim() : "";
                 let itemPrice = priceEl ? (priceEl.innerText || priceEl.textContent || "").trim() : "";
                 let itemHref = linkEl ? linkEl.href : "";
 
@@ -251,32 +297,33 @@ class WebcmdClient:
                     if (m) itemPrice = m[0];
                 }
 
-                if (itemTitle && itemTitle.length > 3 && !items.some(i => i.title === itemTitle)) {
-                    // Clean up title
+                if (itemTitle && !isJunkText(itemTitle) && !items.some(i => i.title === itemTitle)) {
                     itemTitle = itemTitle.split('\n')[0].trim();
                     items.push({
-                        title: itemTitle.slice(0, 100),
+                        title: itemTitle.slice(0, 120),
                         price: itemPrice || "Check Price",
+                        specs: specsText || "",
                         url: itemHref,
                         selector: linkEl ? `a[href="${linkEl.getAttribute('href')}"]` : null
                     });
                 }
             }
 
-            // Fallback: if no items found, scan links containing prices
+            // Fallback: if no items found, scan links containing prices with strict junk filtering
             if (items.length === 0) {
                 const links = Array.from(document.querySelectorAll('a'));
                 for (const l of links) {
-                    if (items.length >= 6) break;
+                    if (items.length >= 8) break;
                     const txt = l.innerText ? l.innerText.trim() : "";
                     const priceMatch = txt.match(/(?:₹|Rs\.?|\$)\s*[\d,]+(?:\.\d+)?/);
                     if (priceMatch && txt.length > 10 && !txt.toLowerCase().includes("cart") && !txt.toLowerCase().includes("login")) {
-                        const lines = txt.split('\n').map(s => s.trim()).filter(Boolean);
-                        const title = lines.find(line => !line.match(/(?:₹|Rs\.?|\$)/) && line.length > 5) || lines[0];
-                        if (title && !items.some(i => i.title === title)) {
+                        const lines = txt.split('\n').map(s => s.trim()).filter(s => Boolean(s) && !isJunkText(s));
+                        const title = lines.find(line => !line.match(/(?:₹|Rs\.?|\$)/) && line.length > 8) || lines[0];
+                        if (title && !isJunkText(title) && !items.some(i => i.title === title)) {
                             items.push({
-                                title: title.slice(0, 100),
+                                title: title.slice(0, 120),
                                 price: priceMatch[0],
+                                specs: "",
                                 url: l.href,
                                 selector: `a[href="${l.getAttribute('href')}"]`
                             });
@@ -325,6 +372,11 @@ class WebcmdClient:
                     buttons.push({ text: btnText, selector: selector || null });
                 }
             }
+
+            // Strict login screen check: only if items list is empty and URL is auth or dedicated sign-in form is present
+            const isAuthUrl = url.includes('/login') || url.includes('/signin') || url.includes('/sign-in') || url.includes('/account/login') || url.includes('/ap/signin') || url.includes('/auth');
+            const hasDedicatedAuthCard = document.querySelector('form[action*="login"], form[action*="signin"], div._39M2dM, div._2M5FGu, #authportal-main-section') !== null;
+            let is_login_screen = !is_otp_screen && items.length === 0 && (isAuthUrl || (hasDedicatedAuthCard && (lowerBody.includes("enter email/mobile") || lowerBody.includes("enter mobile number") || lowerBody.includes("enter your email") || lowerBody.includes("create account"))));
 
             let page_type = "general";
             if (is_payment_screen) page_type = "checkout_payment";
@@ -393,7 +445,6 @@ class WebcmdClient:
             
             if (targetText) {{
                 const all = Array.from(document.querySelectorAll('button, a, input[type="button"], input[type="submit"], div[role="button"], span, div, li, h2, h3'));
-                // Sort by shortest element first to click the exact target rather than a large parent container
                 all.sort((a, b) => (a.innerText || "").length - (b.innerText || "").length);
 
                 for (const el of all) {{
@@ -418,28 +469,50 @@ class WebcmdClient:
 
 
     def fill_element(self, session_id: str, selector: str, value: str, press_enter: bool = False) -> bool:
-        """Fills value into an input field and optionally presses Enter."""
+        """Fills value into an input field using React synthetic setters and optionally presses Enter."""
         script = f"""
-        await page.evaluate(() => {{
-            const sel = {json.dumps(selector)};
-            const val = {json.dumps(value)};
-            const el = document.querySelector(sel);
+        await page.evaluate(({{ sel, val }}) => {{
+            let el = null;
+            if (sel) {{
+                try {{ el = document.querySelector(sel); }} catch (e) {{}}
+            }}
+            if (!el) {{
+                el = document.querySelector('input._2IX_2-') ||
+                     document.querySelector('input[type="tel"]') ||
+                     document.querySelector('input[type="email"]') ||
+                     document.querySelector('input[name*="phone"]') ||
+                     document.querySelector('input[name*="email"]') ||
+                     document.querySelector('input[type="text"]') ||
+                     document.querySelector('input:not([type="hidden"])') ||
+                     document.querySelector('textarea');
+            }}
             if (el) {{
                 el.scrollIntoView({{ behavior: 'instant', block: 'center' }});
                 el.focus();
-                el.value = val;
+                
+                // Trigger React prototype value setter if available
+                const protoSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set ||
+                                    Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
+                if (protoSetter) {{
+                    protoSetter.call(el, val);
+                }} else {{
+                    el.value = val;
+                }}
+                
                 el.dispatchEvent(new Event('input', {{ bubbles: true }}));
                 el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                el.dispatchEvent(new KeyboardEvent('keyup', {{ bubbles: true }}));
                 return true;
             }}
             return false;
-        }});
+        }}, {{ sel: {json.dumps(selector)}, val: {json.dumps(value)} }});
         """
         try:
             res = self.run_script(session_id, script, timeout=10)
-            if press_enter and res.get("ok") and res.get("result"):
+            ok = bool(res.get("ok") and res.get("result"))
+            if press_enter and ok:
                 self.press_key(session_id, "Enter")
-            return bool(res.get("ok") and res.get("result"))
+            return ok
         except Exception:
             return False
 

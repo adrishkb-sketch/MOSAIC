@@ -64,6 +64,16 @@ def test_agent_chat_and_approval_workflow():
     )
     assert response.status_code == 200
     data = response.json()
+    
+    # Handle proactive profile confirmation if triggered
+    if data.get("status") == "asking" and "skills" in data.get("response", "").lower():
+        response = client.post(
+            "/api/agent/chat",
+            json={"email": email, "message": "1", "task_id": task_id}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        
     assert data["status"] == "idle"
     assert data["action_plan_required"] is False
     assert data["browser_active"] is False

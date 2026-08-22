@@ -97,28 +97,45 @@ class InteractiveOption(BaseModel):
     url: Optional[str] = Field(None, description="Direct URL if navigating to a separate link")
     selector: Optional[str] = Field(None, description="CSS selector on the current page to click if chosen")
 
+class VerifiedCatalogItem(BaseModel):
+    id: str = Field(description="Option or item sequence ID ('1', '2', '3')")
+    title: str = Field(description="Real, authentic product/item name and model (e.g. 'HP Victus Intel Core i5 13th Gen RTX 4050' or 'Byomkesh Bakshi Samagra'). Strictly NEVER include UI text like 'Add to Compare', 'Sponsored', or button labels.")
+    price: Optional[str] = Field(None, description="Clean price with currency symbol, e.g. '₹68,990'")
+    specs_or_details: Optional[str] = Field(None, description="Detailed specifications, author, ratings, or highlights (e.g. '16GB RAM | 512GB SSD | 6GB RTX 4050 | 144Hz IPS')")
+    url: Optional[str] = Field(None, description="Direct URL to product or listing page")
+    selector: Optional[str] = Field(None, description="CSS selector to click or interact with this item on the page")
+
+class VerifiedCatalogResponse(BaseModel):
+    items: List[VerifiedCatalogItem] = Field(description="List of verified authentic product/content items matching the user request.")
+    summary: str = Field(description="Concise, helpful summary describing the verified choices for the user.")
+
+class ProfileEnrichmentCheck(BaseModel):
+    should_ask_enrichment: bool = Field(description="True if asking the user to confirm, update, or expand their profile/skills/preferences (e.g. adding more skills for internships, confirming budget/specs for shopping, location for jobs) would significantly improve the task outcome before searching.")
+    question_to_user: str = Field(description="Friendly, conversational question asking the user if they'd like to add more specific skills, preferences, or details, or proceed with what is currently saved in private memory.")
+    options: List[InteractiveOption] = Field(description="2-3 options: Option 1: 'Proceed with current profile (e.g. skills)', Option 2: 'Add more skills / preferences'.")
+
 class TableRow(BaseModel):
     cells: List[str]
 
 class BrowserNextAction(BaseModel):
     thought: str = Field(description="The thinking process, analyzing the page state, links, or fields relative to the goal.")
-    action_type: str = Field(description="One of: click, fill, navigate, wait, ask_user_choice, ask_user_otp, submit_form_approval, payment_boundary, complete")
+    action_type: str = Field(description="One of: click, fill, navigate, wait, ask_user_choice, ask_user_otp, ask_user_login, ask_user_signup, fill_address, submit_form_approval, payment_boundary, complete")
     selector: Optional[str] = Field(None, description="CSS selector or element selector for click/fill")
-    click_text: Optional[str] = Field(None, description="Visible text of the button, link, or tab to click (e.g., 'Price -- Low to High', 'Cheapest', 'Buy Now')")
+    click_text: Optional[str] = Field(None, description="Visible text of the button, link, or tab to click (e.g., 'Price -- Low to High', 'Cheapest', 'Buy Now', 'Proceed to Checkout', 'Deliver Here')")
     value: Optional[str] = Field(None, description="The value to fill if action_type is fill")
     press_enter: Optional[bool] = Field(False, description="Whether to press Enter after typing into input field (e.g. for search inputs)")
     url: Optional[str] = Field(None, description="The target URL to navigate to if action_type is navigate")
-    question: Optional[str] = Field(None, description="The question, clarification, or OTP request message to return to the user")
-    options: Optional[List[InteractiveOption]] = Field(None, description="List of selectable options/items for the user to choose from if action_type is ask_user_choice")
+    question: Optional[str] = Field(None, description="The question, clarification, login credential request, or OTP request message to return to the user")
+    options: Optional[List[InteractiveOption]] = Field(None, description="List of selectable options/items for the user to choose from if action_type is ask_user_choice. Must have real product names, NEVER 'Add to Compare'.")
     table_headers: Optional[List[str]] = Field(None, description="Headers for the comparison table")
     table_rows: Optional[List[TableRow]] = Field(None, description="Rows for the comparison table (each row contains a cells list matching headers)")
     final_summary: Optional[str] = Field(None, description="Final summary text if task is complete")
 
 
 class BroadQueryRecommendation(BaseModel):
-    is_broad_query: bool = Field(description="True if the user request is broad, exploratory, or recommendations-seeking (e.g. 'buy a good bengali book', 'suggest coding laptops', 'find data science internships') rather than an exact specific command with all parameters.")
+    is_broad_query: bool = Field(description="True if the user request is broad, exploratory, or recommendations-seeking (e.g. 'buy a good bengali book', 'suggest coding laptops') rather than an exact specific command with all parameters.")
     recommendations_summary: str = Field(description="Friendly explanation and helpful guidance/questions for the user.")
-    suggested_options: List[InteractiveOption] = Field(description="3-5 specific recommendations, genres, top picks, or filters for the user to pick from.")
+    suggested_options: List[InteractiveOption] = Field(description="3-5 specific recommendations, genres, top picks, or filters for the user to pick from. Must match user's explicit tier or preferences.")
 
 # --- Gemini Service Provider Class ---
 
@@ -226,16 +243,70 @@ class GeminiService:
         Known user profile: {json.dumps(user_profile)}
 
         Analyze if this is a broad, discovery, or recommendation-seeking request (e.g. "buy a good bengali book", "suggest laptops for college", "find tech events in Kolkata", "recommend sci-fi books").
-        If it IS a broad request:
-        1. Set is_broad_query to true.
-        2. In recommendations_summary, provide a friendly, helpful conversational response with expert curated context, and ask what they prefer.
-        3. In suggested_options, give 3-5 specific top-rated recommendations or sub-genres/categories (with id, title, description).
-
-        If the user already specified a precise item/action (e.g. "buy Byomkesh Bakshi Samagra", "search for lenovo ideapad 3 on amazon", "apply for python intern at Google"):
-        1. Set is_broad_query to false.
-        2. suggested_options can be empty.
+        
+        CRITICAL RULES:
+        1. If the user specified a tier, budget, or specific category (e.g. "mid range gaming laptops", "laptops under 70k", "RTX 4060 gaming laptops"):
+           - MUST PRESERVE the exact tier ("mid range", "budget", etc.). NEVER change or downgrade "mid range" to "entry level" or "basic".
+           - Provide 3-4 top recommended laptop models or specific sub-options in THAT EXACT tier (e.g., Lenovo LOQ RTX 4050, Acer Nitro V RTX 4050, ASUS TUF A15).
+        2. If it IS a broad request:
+           - Set is_broad_query to true.
+           - In recommendations_summary, provide a friendly, helpful conversational response with expert curated context, and ask what they prefer.
+           - In suggested_options, give 3-5 specific top-rated recommendations (with id, title, description matching the user's criteria).
+        3. If the user already specified a precise item/action (e.g. "buy Byomkesh Bakshi Samagra", "search for lenovo ideapad 3 on amazon", "apply for python intern at Google"):
+           - Set is_broad_query to false.
+           - suggested_options can be empty.
         """
         return self._call_model(prompt, BroadQueryRecommendation)
+
+    def verify_and_clean_catalog_items(
+        self,
+        user_query: str,
+        page_title: str,
+        current_url: str,
+        raw_items: List[Dict[str, Any]],
+        page_snapshot: str = ""
+    ) -> VerifiedCatalogResponse:
+        prompt = f"""
+        You are MOSAIC's strict AI Verification & Extraction Engine.
+        Your job is to examine raw scraped items and the live website page state, verify every product/item, and remove any scraping junk or UI artifacts before anything is shown to the user.
+
+        User Request / Query: "{user_query}"
+        Current Website: {current_url} (Page Title: {page_title})
+        Raw Scraped Items from Webcmd:
+        {json.dumps(raw_items)}
+
+        Page Accessibility / Text Snippet:
+        {page_snapshot[:4000]}
+
+        CRITICAL VERIFICATION RULES:
+        1. AUTHENTIC PRODUCT NAMES: Each item's 'title' MUST be the genuine, full product/model name (e.g. "Acer Nitro V 15 Intel Core i5 13th Gen (16GB/512GB SSD/RTX 4050)", "Lenovo LOQ Core i5 12th Gen RTX 3050", "ASUS TUF Gaming A15", "Byomkesh Bakshi Samagra").
+        2. STRICT JUNK BAN: NEVER EVER return UI action labels, button texts, or promotional banners as product titles. Strictly discard or fix:
+           - "Add to Compare", "Compare", "Add to wishlist", "Sponsored", "Bank Offer", "Free delivery", "Special Price", "HOT DEALS", "Top Discount", "Ratings & Reviews", "4.2 ★", "Buy Now", "Add to Cart", "Sign in", "Explore Plus".
+        3. USER INTENT & TIER FIDELITY: Ensure the selected items match the user's specific request and tier (e.g. if the user specified 'mid range gaming laptops', select gaming laptops in the mid-range tier like RTX 4050 / RTX 4060, NOT entry-level or non-gaming machines).
+        4. ACCURATE DETAILS: In 'price', provide the actual formatted price (e.g. '₹69,990'). In 'specs_or_details', include key specs like processor, graphics card, RAM, SSD, or rating.
+        5. PRESERVE SELECTOR & URL: Retain the selector or URL from the matching raw item so the browser agent can click or navigate to it.
+        6. Provide at most 4-5 top verified items and a friendly, concise summary.
+        """
+        return self._call_model(prompt, VerifiedCatalogResponse)
+
+    def check_profile_enrichment(self, user_request: str, user_profile: Dict[str, Any]) -> ProfileEnrichmentCheck:
+        prompt = f"""
+        You are MOSAIC, an intelligent personal browser agent with private scoped memory.
+        User Request: "{user_request}"
+        Current User Profile in Memory: {json.dumps(user_profile)}
+
+        Analyze if we should proactively ask the user to confirm, update, or expand their profile/skills/preferences before proceeding with this task.
+        
+        Guidelines:
+        1. If applying for internships/jobs and the profile has skills (e.g. "Python, React"):
+           - Set should_ask_enrichment to true.
+           - In question_to_user, say: "I see your saved skills are **{user_profile.get('skills', '')}**. Would you like to add any more skills, tech stacks, or domains (e.g. backend, ML, Docker) before I search, or should I proceed with these?"
+           - In options, provide Option 1: "Proceed with saved skills ({user_profile.get('skills', '')})" and Option 2: "Add more skills or preferences".
+        2. If shopping or comparing items and user might have budget/brand/spec preferences:
+           - If useful, ask if they want to specify any additional constraints or proceed.
+        3. If the user already provided specific criteria or explicitly said to proceed, set should_ask_enrichment to false.
+        """
+        return self._call_model(prompt, ProfileEnrichmentCheck)
 
     def identify_missing_info(self, user_request: str, user_profile: Dict[str, Any]) -> MissingInformation:
         prompt = f"""
@@ -332,16 +403,19 @@ class GeminiService:
         4. CATALOG / SEARCH RESULTS / CHOICES: If on a catalog/search results page and items are visible:
            - If the user needs to select an item, extract the top 3-5 visible items into the 'options' list (with id, title, price/details, and selector or url).
            - Set action_type to 'ask_user_choice' and explain the choices concisely.
-        5. PRODUCT DETAILS & CART: If on a product page and the goal is to buy/purchase/apply:
-           - Set action_type to 'click' on 'Buy Now', 'Add to Cart', 'Apply Now', or 'Proceed to Checkout'.
-        6. VERIFICATION / OTP: If the page asks for an SMS or email OTP:
-           - Set action_type to 'ask_user_otp', selector to OTP input, and question to "Please enter the OTP verification code sent to you:".
-        7. FORM FILLING: If on a form (address, shipping, job application):
-           - Map user profile fields and set action_type to 'fill'.
-        8. PAYMENT SAFETY BOUNDARY: If checkout reaches payment method selection, card entry, UPI, or final place order:
-           - STRICT RULE: set action_type to 'payment_boundary' and explain that manual payment is required inside the browser viewport.
-        9. SUBMISSION CONFIRMATION: If ready to submit a non-payment consequential action, set action_type to 'submit_form_approval'.
-        10. COMPLETION: If the user's instruction or task is fully satisfied, set action_type to 'complete' with final_summary.
+        5. PRODUCT DETAILS & CART / CHECKOUT TRAVEL: If on a product page or cart view and the goal is to buy/purchase/apply:
+           - Set action_type to 'click' on 'Buy Now', 'Add to Cart', 'Proceed to Checkout', 'Place Order', 'Go to Cart', or 'Deliver to this address'.
+           - Keep travelling automatically through checkout steps!
+        6. LOGIN / SIGNUP CREDENTIALS: If the page requires login or signup:
+           - If phone or email is in profile, fill it. If user credentials (password/phone/signup) are needed, set action_type to 'ask_user_login' or 'ask_user_signup' with a clear prompt for the user.
+        7. VERIFICATION / OTP: If the page asks for an SMS or email OTP:
+           - Set action_type to 'ask_user_otp', selector to OTP input, and question to "Please enter the OTP verification code sent to your phone/email:".
+        8. ADDRESS & FORM FILLING: If on an address, shipping, or job application form:
+           - Map user profile fields (name, phone, address, pincode, city, skills) and set action_type to 'fill'.
+        9. PAYMENT SAFETY BOUNDARY: If checkout reaches payment method selection, card number, CVV, UPI ID, or final pay button:
+           - STRICT SAFETY RULE: set action_type to 'payment_boundary' and explain that manual payment is required inside the browser viewport.
+        10. SUBMISSION CONFIRMATION: If ready to submit a non-payment consequential action, set action_type to 'submit_form_approval'.
+        11. COMPLETION: If the user's instruction or task is fully satisfied, set action_type to 'complete' with final_summary.
         """
         return self._call_model(prompt, BrowserNextAction)
 
